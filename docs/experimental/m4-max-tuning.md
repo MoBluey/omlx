@@ -84,3 +84,29 @@ quantisation eligibility checks were preserved.
 
 Detailed managed-runtime acceptance and rollback notes are recorded in
 [QwenLocal's tuning report](https://github.com/MoBluey/QwenLocal/blob/319770a/docs/m4-max-tuning-2026-11-03.md).
+
+## Qwen follow-up: lazy grammar setup
+
+This branch also carries upstream [ae659d39](https://github.com/jundot/omlx/commit/ae659d3979e72b800a4d2a0ad469d315c71a9aa6):
+plain requests return before accessing the engine's lazy grammar compiler.
+Structured requests still build and use it. The first structured request
+pays that setup cost if no earlier structured request has done so.
+
+The actual Qwen tokenizer, with 248,320 vocabulary entries, was measured in
+four fresh processes in stock/candidate/candidate/stock order. Plain-request
+compiler setup took 444.223 and 446.159 ms on stock, and 0.0055 and 0.0043 ms
+on the candidate. Each process subsequently compiled a real JSON schema.
+These are component timings, not full-model latency or decode throughput.
+
+All 114 grammar tests passed. An independent review found no blockers.
+Stock and candidate Ornith API runs preserved the same greedy plain-text
+output and passed strict JSON-schema generation plus six tool-call checks.
+The first plain request avoided 464.879 ms of compiler work in the stock
+Ornith API comparison. Its total request times are confounded by model and
+file-cache loading and are not reported as a speedup.
+
+Full Qwen validation remains pending: two stock model loads exceeded the
+private swap-write guard. The first recorded 7.113 GiB of host swap writes;
+the second was terminated earlier. No Qwen scheduling or PLE optimisation
+is retained. This grammar patch is a validated source candidate, not an
+installed replacement for QwenLocal's sealed production runtime.
