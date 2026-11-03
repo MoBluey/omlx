@@ -67,6 +67,9 @@ install_capacity_methods(BatchKVCache)
 
 _PLE_RUNTIME_MODEL_PATH: Path | None = None
 _PLE_RUNTIME_MODE = "resident"
+# Experimental: overlap current decode/verify rows with the earlier layers.
+# Leave the production path unchanged until an end-to-end A/B qualifies it.
+_PLE_DECODE_PREFETCH = os.environ.get("OMLX_QWEN4_PLE_DECODE_PREFETCH") == "1"
 _HYPER_SPLIT_INDICES: dict[tuple[int, int], tuple[mx.array, mx.array]] = {}
 
 
@@ -4717,6 +4720,26 @@ class Qwen4ExpDecoderLayer(nn.Module):
         return _hc_write(hyper_input, branch, injection_weights)
 
 
+def _ple_prefetch_decode(layers, input_ids, cache):
+    """Read current rows using committed per-layer history, without changing it.
+
+    The prefill lookahead helper derives history from the previous chunk. Decode
+    and verify instead need cache[3], including its accepted-prefix restoration
+    after MTP rollback. Only the normal PLE call advances that history.
+    """
+    if cache is None or not 0 < input_ids.shape[1] <= 64:
+        return
+    # Reject a fork child before the ngram helper constructs any MLX graph.
+    _ple_require_owner()
+    for layer, layer_cache in zip(layers, cache):
+        ple = getattr(layer, "ple", None)
+        if ple is None or layer_cache is None or layer_cache[3] is None:
+            continue
+        embedding = ple.ple_embedding
+        if getattr(embedding.ngram_embedding, "prefetch", None) is not None:
+            embedding.prefetch(input_ids, layer_cache[3])
+
+
 class Qwen4ExpModel(nn.Module):
     def __init__(self, config: TextConfig):
         super().__init__()
@@ -4747,6 +4770,8 @@ class Qwen4ExpModel(nn.Module):
         **kwargs,
     ):
         del kwargs
+        if _PLE_DECODE_PREFETCH:
+            _ple_prefetch_decode(self.layers, inputs, cache)
         if cache is not None and any(
             getattr(c, "_speculation", None) is not None for c in cache
         ):

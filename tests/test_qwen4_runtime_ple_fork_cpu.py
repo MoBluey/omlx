@@ -219,6 +219,9 @@ class RuntimePLEForkTests(unittest.TestCase):
             for call in (
                 lambda: e.prefetch(object()),
                 lambda: e(object()),
+                lambda: NS["_ple_prefetch_decode"](
+                    [object()], types.SimpleNamespace(shape=(1, 1)), [object()]
+                ),
                 lambda: self.reader.rows_np("weight", [0]),
                 lambda: NS["_SafeTensorMMap"](self.path),
                 lambda: NS["DiskBackedShardedEmbedding"]("", "", 16, 4, 1),
@@ -411,6 +414,58 @@ class RuntimePLEForkTests(unittest.TestCase):
         bad.write_bytes(b"no")
         with self.assertRaises(struct.error):
             NS["_SafeTensorMMap"](bad)
+
+    def test_decode_prefetch_uses_each_layers_live_history_without_mutation(self):
+        calls = []
+        histories = [np.array([[2, 3]]), np.array([[7, 8]])]
+        caches = [[None, None, None, history] for history in histories]
+        tokens = np.array([[4, 5]])
+
+        def layer(index):
+            embedding = types.SimpleNamespace(
+                ngram_embedding=types.SimpleNamespace(prefetch=object()),
+                prefetch=lambda ids, history: calls.append((index, ids, history)),
+            )
+            return types.SimpleNamespace(ple=types.SimpleNamespace(ple_embedding=embedding))
+
+        layers = [layer(0), layer(1)]
+        NS["_ple_prefetch_decode"](layers, tokens, caches)
+        self.assertEqual([index for index, _, _ in calls], [0, 1])
+        for index, ids, history in calls:
+            self.assertIs(ids, tokens)
+            self.assertIs(history, histories[index])
+            np.testing.assert_array_equal(history, [[2, 3]] if index == 0 else [[7, 8]])
+            self.assertIs(caches[index][3], histories[index])
+
+        # A rejected verify suffix is replaced by rollback before the next call.
+        restored = np.array([[3, 4]])
+        caches[0][3] = restored
+        NS["_ple_prefetch_decode"](layers, tokens[:, :1], caches)
+        self.assertIs(calls[2][2], restored)
+
+    def test_decode_prefetch_skips_prefill_resident_and_missing_history(self):
+        def fail(*args):
+            self.fail("unexpected prefetch")
+
+        resident = types.SimpleNamespace(
+            ple=types.SimpleNamespace(
+                ple_embedding=types.SimpleNamespace(ngram_embedding=object(), prefetch=fail)
+            )
+        )
+        disk = types.SimpleNamespace(
+            ple=types.SimpleNamespace(
+                ple_embedding=types.SimpleNamespace(
+                    ngram_embedding=types.SimpleNamespace(prefetch=fail), prefetch=fail
+                )
+            )
+        )
+        prefetch = NS["_ple_prefetch_decode"]
+        prefetch([disk], np.zeros((1, 1)), None)
+        prefetch([disk], np.zeros((1, 65)), [[None, None, None, object()]])
+        prefetch([disk], np.zeros((1, 1)), [[None] * 4])
+        prefetch([disk], np.zeros((1, 1)), [None])
+        prefetch([resident], np.zeros((1, 1)), [[None, None, None, object()]])
+        prefetch([object()], np.zeros((1, 1)), [object()])
 
 
 if __name__ == "__main__":

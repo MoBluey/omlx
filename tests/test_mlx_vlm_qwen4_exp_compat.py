@@ -2146,6 +2146,70 @@ def test_ngram_prefetch_computes_the_next_chunks_indices():
     assert mx.array_equal(seen["prefetch"], seen["call"]).item()
 
 
+@pytest.mark.parametrize("accepted", [0, 2, 3])
+@pytest.mark.parametrize("bits", [None, 4])
+def test_decode_ple_prefetch_exact_ssd_logits_after_mtp_rollback(
+    tmp_path, monkeypatch, accepted, bits
+):
+    """Actual SSD rows on the worker preserve decode/verify and rejected suffixes."""
+    import threading
+
+    config = _tiny_config()
+    config.text_config.num_hidden_layers = 3
+    config.text_config.layer_types = ["linear_attention", "linear_attention", "full_attention"]
+    config.text_config.ple_layer_ids = [2]
+    config.text_config.ple_embed_dim = 128
+    model = qwen4_language.LanguageModel(config.text_config, config)
+    table, _ = _disk_ple(tmp_path, shards=4, rows=128, dims=32, bits=bits)
+    model.model.layers[1].ple.ple_embedding.ngram_embedding = table
+    baseline_cache, trial_cache = model.make_cache(), model.make_cache()
+    worker_threads = []
+    assemble = table._assemble
+
+    def observe_assemble(*args):
+        worker_threads.append(threading.current_thread().name)
+        return assemble(*args)
+
+    monkeypatch.setattr(table, "_assemble", observe_assemble)
+    prefix = mx.array([[2, 3, 1, 4]], dtype=mx.int32)
+    verify = mx.array([[5, 1, 7, 8]], dtype=mx.int32)
+    try:
+        monkeypatch.setattr(qwen4_language, "_PLE_DECODE_PREFETCH", False)
+        mx.eval(model(prefix, cache=baseline_cache).logits)
+        mx.eval(model(prefix, cache=trial_cache).logits)
+        baseline = model(verify, cache=baseline_cache, return_hidden=True)
+        mx.eval(baseline.logits)
+        assert table.last_prefetch_hit is False
+        worker_threads.clear()
+
+        monkeypatch.setattr(qwen4_language, "_PLE_DECODE_PREFETCH", True)
+        trial = model(verify, cache=trial_cache, return_hidden=True)
+        mx.eval(trial.logits)
+        assert table.last_prefetch_hit is True
+        assert worker_threads and all(name.startswith("ple-prefetch") for name in worker_threads)
+        assert mx.array_equal(trial.logits, baseline.logits).item()
+
+        for cache, output in ((baseline_cache, baseline), (trial_cache, trial)):
+            model.rollback_speculative_cache(cache, output.gdn_states, accepted, 4)
+        assert mx.array_equal(trial_cache[1][3], baseline_cache[1][3]).item()
+        assert mx.array_equal(trial_cache[1][2], baseline_cache[1][2]).item()
+
+        next_ids = mx.array([[9]], dtype=mx.int32)
+        monkeypatch.setattr(qwen4_language, "_PLE_DECODE_PREFETCH", False)
+        expected = model(next_ids, cache=baseline_cache)
+        mx.eval(expected.logits)
+        monkeypatch.setattr(qwen4_language, "_PLE_DECODE_PREFETCH", True)
+        actual = model(next_ids, cache=trial_cache)
+        mx.eval(actual.logits)
+        assert table.last_prefetch_hit is True
+        assert mx.array_equal(actual.logits, expected.logits).item()
+        assert mx.array_equal(trial_cache[1][3], baseline_cache[1][3]).item()
+        assert mx.array_equal(trial_cache[1][2], baseline_cache[1][2]).item()
+    finally:
+        table.close()
+    assert not table._pending
+
+
 
 def test_ple_gathers_ahead_only_with_a_prefetching_table():
     from mlx_vlm.models.qwen4_exp.language import LanguageModel
