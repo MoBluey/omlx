@@ -105,8 +105,34 @@ The first plain request avoided 464.879 ms of compiler work in the stock
 Ornith API comparison. Its total request times are confounded by model and
 file-cache loading and are not reported as a speedup.
 
-Full Qwen validation remains pending: two stock model loads exceeded the
-private swap-write guard. The first recorded 7.113 GiB of host swap writes;
-the second was terminated earlier. No Qwen scheduling or PLE optimisation
-is retained. This grammar patch is a validated source candidate, not an
-installed replacement for QwenLocal's sealed production runtime.
+Full Qwen validation completed on 4 November after the active Claude browser
+workload ended. Ten matched generations, including 28K-context reuse,
+preserved exact output hashes against both stock controls. Strict JSON,
+six tool cases and a real Hermes coding fixture passed. The coding run took
+120.350 seconds with nine tool calls, no malformed or repeated calls and no
+new swap writes.
+
+QwenLocal installed a separate sealed build containing the grammar patch.
+Its normal-router coding fixture passed in 113.583 seconds with eight tool
+calls and no malformed/repeated calls or new swap writes. Both installed
+model routes passed strict JSON. The original runtime remains available
+for rollback. The installed grammar suite passed 114 checks; integration,
+integrity and retained-Ornith-tuning checks passed another 35.
+
+Qwen retains its command-buffer defaults. A 25-operation setting was 12.7%
+slower on short prompts and 9.0% slower at 28K than warmed stock. A
+100-operation load hit the private swap guard and yielded no performance
+result; host-state effects were not isolated. Live PLE profiling placed
+raw row reads at about 3.8% of the observed decoding interval, so no new
+cache or prefetch patch is retained.
+
+Of 40 completed timing requests, 39 recorded no new swap writes. The
+patched-source cold load recorded 317.563 MiB, below the abort threshold;
+its subsequent requests recorded zero. Earlier stock loads also exceeded
+the guard under a busier host. These host-wide events do not establish a
+patch-induced regression, and the evidence does not justify a zero-swap
+guarantee for model loading.
+
+The retained benefit is first-request setup, not sustained decode speed.
+Installed identity, full measurements, limitations and rollback are in
+[QwenLocal's follow-up report](https://github.com/MoBluey/QwenLocal/blob/5df664544506e010db413a1aeb3b0b1c1eeb79d9/docs/qwen-m4-max-follow-up-2026-11-03.md).
