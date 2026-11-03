@@ -1610,11 +1610,22 @@ _QWEN4_VERIFY_IN_TILES = {2: (1, 2), 3: (2, 3), 4: (4, 2), 5: (2, 5), 6: (4, 3),
 _QWEN4_VERIFY_OUT_TILES = {2: (4, 1), 3: (4, 3), 4: (2, 4), 5: (2, 5), 6: (4, 3), 7: (4, 1), 8: (2, 4)}
 
 
-def _qwen4_verify_in_tile(rows):
+@functools.cache
+def _qwen4_verify_m4_max():
+    return mx.device_info().get("device_name") == "Apple M4 Max"
+
+
+def _qwen4_verify_in_tile(rows, *, bits=None, group_size=None):
+    # M4 Max, oQ4e, two-row verify: share the decoded weights across both
+    # rows with two columns per simdgroup. Other allocations keep M5 tiles.
+    if rows == 2 and bits == 4 and group_size == 64 and _qwen4_verify_m4_max():
+        return 2, 2
     return _QWEN4_VERIFY_IN_TILES.get(rows) or _qwen4_verify_in_geometry(rows)
 
 
-def _qwen4_verify_out_tile(rows):
+def _qwen4_verify_out_tile(rows, *, bits=None, group_size=None):
+    if rows == 2 and bits == 5 and group_size == 128 and _qwen4_verify_m4_max():
+        return 4, 2
     return _QWEN4_VERIFY_OUT_TILES.get(rows) or _qwen4_verify_out_geometry(rows)
 
 
@@ -1652,7 +1663,7 @@ def _build_qwen4_verify_plan(module):
         group_size,
         mode,
         mx.bfloat16,
-        _qwen4_verify_in_tile,
+        functools.partial(_qwen4_verify_in_tile, bits=bits, group_size=group_size),
         unrolled=True,
     )
     out_rows = rows_qmv(
@@ -1663,7 +1674,9 @@ def _build_qwen4_verify_plan(module):
         out.group_size,
         out.mode,
         mx.bfloat16,
-        _qwen4_verify_out_tile,
+        functools.partial(
+            _qwen4_verify_out_tile, bits=out.bits, group_size=out.group_size
+        ),
         unrolled=True,
     )
     if in_rows is None or out_rows is None:
