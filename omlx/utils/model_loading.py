@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Any
 
@@ -1353,6 +1354,9 @@ _DFLASH_BATCHED_MODEL_TYPES = {
 
 def dflash_batched_supported(model_type: str | None, engine_type: str | None) -> bool:
     """True when DFlash runs as a block drafter inside the batched engine."""
+    if model_type == "qwen4_exp" and engine_type == "vlm":
+        # The native HC/recurrent/PLE adapter remains opt-in until qualified.
+        return os.environ.get("OMLX_QWEN4_DFLASH_TRIAL") == "1"
     return model_type in _DFLASH_BATCHED_MODEL_TYPES.get(engine_type or "", ())
 
 

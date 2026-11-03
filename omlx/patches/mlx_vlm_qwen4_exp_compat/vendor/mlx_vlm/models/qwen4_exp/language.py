@@ -4798,6 +4798,24 @@ class Qwen4ExpModel(nn.Module):
             ):
                 mx.async_eval(hidden_states, *(write or ()))
             if hidden_sink is not None and index in capture:
+                if getattr(self, "_omlx_dflash_hc_mean", False):
+                    # Flash-Next DFlash2 was trained on completed layer outputs
+                    # averaged over HC streams, without the trained final mixer.
+                    # Read a pending write without consuming it: the target's
+                    # fused decode arithmetic must remain unchanged.
+                    completed = (
+                        _hc_write(hidden_states, *write)
+                        if write is not None
+                        else hidden_states
+                    )
+                    hidden_sink.append(
+                        completed.reshape(
+                            *completed.shape[:-1],
+                            self.args.hc_count,
+                            self.args.hidden_size,
+                        ).mean(axis=-2)
+                    )
+                    continue
                 if write is None:
                     mixed = self.hyper_connection_mixer(
                         hidden_states, target_verify=target_verify
@@ -5010,15 +5028,38 @@ class LanguageModel(Qwen3_5LanguageModel):
         owner = owner_ref() if owner_ref is not None else None
         return getattr(owner, "mtp", None) if owner is not None else None
 
+    def prepare_dflash_target(self):
+        """Trial adapter: keep native HC capture, PLE and recurrent rollback."""
+        if os.environ.get("OMLX_QWEN4_DFLASH_TRIAL") != "1":
+            raise RuntimeError("Qwen4 DFlash requires OMLX_QWEN4_DFLASH_TRIAL=1")
+        self.model._omlx_dflash_hc_mean = True
+        self._omlx_drafter_single_row = True
+        self._omlx_mtp_max_verify_rows = 4
+
     def __call__(self, inputs, inputs_embeds=None, mask=None, cache=None, **kwargs):
         return_hidden = bool(kwargs.get("return_hidden", False))
+        drafter = getattr(self, "_omlx_drafter", None)
+        scope = getattr(drafter, "scope_uids", None)
+        observe = bool(
+            getattr(self.model, "_omlx_dflash_hc_mean", False)
+            and not return_hidden
+            and kwargs.get("capture_layer_ids") is None
+            and scope
+            and inputs_embeds is None
+            and tuple(inputs.shape) == (len(scope), 1)
+        )
+        if observe:
+            kwargs["capture_layer_ids"] = list(drafter.target_layer_ids)
         mtp_capture = return_hidden and kwargs.get("capture_layer_ids") is None
+        dflash_capture = bool(
+            return_hidden and getattr(self.model, "_omlx_dflash_hc_mean", False)
+        )
         if mtp_capture:
             kwargs["capture_layer_ids"] = []
         # One-row windows (the activation step, depth-0 cycles) have no draft to
         # reject, so they run the serial decode step rather than a verify forward.
         one_row_step = (
-            mtp_capture
+            (mtp_capture or dflash_capture)
             and inputs_embeds is None
             and tuple(inputs.shape) == (1, 1)
             and cache is not None
@@ -5026,7 +5067,7 @@ class LanguageModel(Qwen3_5LanguageModel):
         )
         transaction = (
             start_speculative_cache(cache or [], inputs.shape[1])
-            if mtp_capture and not one_row_step
+            if (mtp_capture or dflash_capture) and not one_row_step
             else None
         )
         step = _MTP_ONE_ROW_STEP.set(True) if one_row_step else None
@@ -5035,6 +5076,8 @@ class LanguageModel(Qwen3_5LanguageModel):
             if mtp_capture and output.hidden_states:
                 output.hidden_states = [output.hidden_states[0]]
             output.gdn_states = transaction
+            if observe:
+                drafter.observe(scope, output.hidden_states)
             return output
         except BaseException:
             if transaction is not None:

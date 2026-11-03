@@ -2869,7 +2869,10 @@ class VLMBatchedEngine(BaseEngine):
         layer captures and rollback here, before the drafter binds.
         """
         language_model = self._vlm_model.language_model
-        if not hasattr(language_model, "rollback_speculative_cache"):
+        prepare = getattr(language_model, "prepare_dflash_target", None)
+        if prepare is not None:
+            prepare()
+        elif not hasattr(language_model, "rollback_speculative_cache"):
             drafter_target.apply(language_model)
         return self._vlm_model
 
