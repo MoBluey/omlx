@@ -15,15 +15,21 @@ from pathlib import Path
 import statistics
 import time
 
+_INSTALLED = False
+
 
 def install():
+    global _INSTALLED
+    if _INSTALLED:
+        return
     import mlx.core as mx
     from omlx.patches import qwen35_moe_routed_decode as moe
     from omlx.patches.mlx_vlm_qwen4_exp_compat import (
         apply_mlx_vlm_qwen4_exp_compat_patch,
     )
 
-    assert apply_mlx_vlm_qwen4_exp_compat_patch()
+    # False also means the normal harness already registered this package.
+    apply_mlx_vlm_qwen4_exp_compat_patch()
     from mlx_vlm.models.qwen4_exp import attn_fused, qsa_fast
 
     output = Path(os.environ["QWEN_GPU_PROBE_OUTPUT"])
@@ -154,3 +160,4 @@ def install():
     wrap(qsa_fast, "_portable_indexer_head_scores", lambda a: a[0].shape[1])
     wrap(qsa_fast, "decode_block_selection_tokens", lambda a: a[0].shape[1])
     save()
+    _INSTALLED = True

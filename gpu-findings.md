@@ -80,12 +80,19 @@ support it. No wide parameter sweep or unrelated kernel is in scope.
 
 ## Verification so far
 
-Standard-library AST parsing of the new script passed under the pinned
-Python with `-BIS`. No GPU test has run in this worktree yet. Main owns the
-GPU slot and full-model controls. Remaining acceptance requires actual capture,
-bit-exact candidate evidence and, for a supported candidate, same-resident
-warmed short/28K ABBA with 700 output tokens. A winner would additionally
-need the existing production quality and independent review gates.
+Standard-library AST parsing passed under pinned Python with `-BIS`.
+The first capture startup exposed an incorrect assertion: compatibility
+registration returns false when already applied. The corrected hook accepts
+that case and is itself idempotent. Actual isolated `-BIS` preflight applied
+compatibility twice, installed the probe twice without double wrapping, and
+ran an eight-replay BF16 gather with exact output bits. Derived evidence:
+`gpu-probe-preflight.json` in the current trial directory.
+
+No full-model capture has completed yet. Main owns the GPU slot and full-model
+controls. Remaining acceptance requires actual capture, bit-exact candidate
+evidence and, for a supported candidate, same-resident warmed short/28K ABBA
+with 700 output tokens. A winner would additionally need the existing
+production quality and independent review gates.
 
 The tile candidate does not mutate a cached plan. `_window_down` constructs
 its Metal template on each call, including explicit `RPS` and `M` entries;
