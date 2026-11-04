@@ -11,6 +11,8 @@ replace most of them with the same float operations in the same order:
   ``1 + weight`` scale, its ``rms_single_row`` reduction lane for lane) and
   mlx-vlm's fused MRoPE kernel, for every head and row in one launch. With a
   YaRN attention scaling it follows mlx-vlm's eager MRoPE, which serves YaRN.
+  Its arithmetic does not depend on the GPU, so prefill rows use it on every
+  GPU (``prep_ready``).
 * ``dense_sdpa_gate``: MLX 0.32.2's vector SDPA plan of each row -- the
   one-pass kernel below 1024 keys, the two-pass kernel with 128 partitions
   from 1024 keys (Apple 'd' GPUs) -- then MLX's multiply by the gate's
@@ -22,9 +24,9 @@ replace most of them with the same float operations in the same order:
   row of a verify window takes the plan its own serial decode step would,
   in one launch pair.
 
-``ready`` runs each specialization once on tiny inputs first; a compile or
-launch failure turns the kernels off for the process and callers keep the
-MLX path.
+``prep_ready`` is an independent, default-off preparation trial. It and the
+unchanged d-only ``ready`` validate specializations on tiny inputs first,
+with separate failure states and the MLX path as fallback.
 """
 
 from __future__ import annotations
@@ -37,6 +39,12 @@ import mlx.core as mx
 logger = logging.getLogger(__name__)
 
 _DISABLED = False
+# Independent default-off preparation trial. Complete d-only row eligibility
+# and its existing readiness/failure state stay unchanged.
+PREP_FUSION_ENABLED = False
+PREP_FUSION_CALLS = 0
+PREP_FUSION_DISABLED = False
+_PREP_READY: set[tuple] = set()
 MAX_ROWS = 16
 # MLX's vector SDPA: one pass below this many keys on 'd'/'s' GPUs.
 _TWO_PASS_KEYS = 1024
@@ -623,6 +631,58 @@ def dense_sdpa_gate(
         output_shapes=[(rows, heads * head_dim)],
         output_dtypes=[dtype],
     )[0]
+
+
+def _tiny_prep(dtype, heads: int, kv_heads: int, head_dim: int, rotary_dim: int, pos_ndim: int):
+    q_proj = mx.zeros((1, heads * 2 * head_dim), dtype=dtype)
+    k_proj = mx.ones((1, kv_heads * head_dim), dtype=dtype)
+    scale = mx.ones((head_dim,), dtype=mx.float32)
+    positions = mx.zeros((3, 1, 1) if pos_ndim == 3 else (1, 1), dtype=mx.int32)
+    half = rotary_dim // 2
+    return prep_qk(
+        q_proj,
+        k_proj,
+        scale,
+        scale,
+        1e-6,
+        positions,
+        mx.ones((half,), dtype=mx.float32),
+        mx.zeros((half,), dtype=mx.int32),
+        heads=heads,
+        kv_heads=kv_heads,
+        rotary_dim=rotary_dim,
+    )
+
+
+def prep_ready(
+    dtype, heads: int, kv_heads: int, head_dim: int, rotary_dim: int, pos_ndim: int
+) -> bool:
+    """Whether ``prep_qk`` serves this layout, on any GPU: head dim 256 (the
+    RMS layout) and an even rotary width within it. Each specialization runs
+    once on tiny inputs first; a compile or launch failure disables only the
+    independent preparation trial."""
+    global PREP_FUSION_DISABLED
+    if not PREP_FUSION_ENABLED or PREP_FUSION_DISABLED:
+        return False
+    if (
+        dtype not in (mx.bfloat16, mx.float16, mx.float32)
+        or head_dim != 256 or heads <= 0 or kv_heads <= 0
+        or rotary_dim % 2 or not 0 < rotary_dim <= head_dim
+        or pos_ndim not in (2, 3)
+        or mx.default_device() != mx.gpu or not mx.metal.is_available()
+    ):
+        return False
+    signature = ("prep", dtype, heads, kv_heads, head_dim, rotary_dim, pos_ndim)
+    if signature in _PREP_READY:
+        return True
+    try:
+        mx.eval(*_tiny_prep(dtype, heads, kv_heads, head_dim, rotary_dim, pos_ndim))
+    except Exception:
+        PREP_FUSION_DISABLED = True
+        logger.warning("Qwen4 preparation trial failed; using the MLX path", exc_info=True)
+        return False
+    _PREP_READY.add(signature)
+    return True
 
 
 def ready(dtype, heads: int, kv_heads: int, head_dim: int, rotary_dim: int, pos_ndim: int) -> bool:
