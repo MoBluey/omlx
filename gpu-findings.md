@@ -2,7 +2,8 @@
 
 Status: current Qwen short/28K capture and fused-gather numerical checks
 completed. Down2 tiling is rejected. One default-off fused K/V gather candidate
-is ready for main's same-resident ABBA. No change is accepted or installed.
+is undergoing main's same-resident ABBA. Its narrow steady-state coverage is
+described below. No change is accepted or installed.
 
 ## Scope and provenance
 
@@ -53,9 +54,46 @@ uint8 views. Table values are medians of four per-sample medians, microseconds:
 These synchronised micro-operation latencies include dispatch/evaluation cost.
 They are not shader-only timings, a model-time decomposition, measured memory
 bandwidth or predicted end-to-end gains. They must not be summed into shares.
-Both captures are already past the 2048-token selection budget, so both use
-sparse QSA. The dense attention hook was not exercised. Sparse two-row verify
-executes each row's singleton QSA in serial order, preserving exact reduction.
+Both captures are already past the 2048-token selection budget. The measured
+QSA operators are the gathered sparse arm; the dense hook was not exercised.
+These samples do not establish coverage of the backbone's attention path.
+
+### Steady-state coverage correction
+
+Source-path review after the ABBA engagement check identified a narrower
+reach than the initial capture suggested:
+
+* `omlx/models/vlm.py::_step_text_positions_min_context` returns infinity
+  while `attn_fused.rows_available()` is true. Its `_position_ids_from_starts`
+  therefore retains rank-three positions for backbone decode/verify, whose
+  `language.py::_row_exact_masked_verify` uses masked QSA and does not call
+  the gathered-copy helper. Even without fused rows, the normal threshold is
+  32768 cached tokens, above both measured workloads.
+* `language.py::Qwen4ExpMTPModule.__call__` explicitly constructs rank-two
+  positions for its single draft layer. Singleton draft-head folds can take
+  the gathered arm. `batch_generator.py::_chain_next_drafts` folds all committed
+  tokens at once; accepted drafts usually produce two-row folds, which do not
+  use this singleton helper. The ordinary gathered-prefill gate requires at
+  least 16 query rows (`omlx/memory_monitor.py`), excluding those two-row folds.
+* `gather-abba-b/trial-arms.jsonl` shows zero factory-call increments in A and
+  repeated increments of exactly 113 in warmed short B requests. The native
+  logs report 404 cycles and 110 rejected drafts in each matching request.
+  This supports effective request-boundary toggling with sparse draft-head
+  reach; 113 is consistent with those rejected cycles plus setup. Module
+  ownership and each setup call were not separately counted, so that final
+  attribution is a source-based inference rather than a per-instance trace.
+
+The helper and its gathered-QSA callers are ordinary Python functions, not
+compiled wrappers. The live capture confirmed matching BF16 cache and int32
+index eligibility. No evidence supports a captured false flag or silent
+fallback as the explanation for the low count. The kernel factory is called
+on each eligible helper invocation even though the underlying kernel factory
+is cached, making main's counter meaningful.
+
+The bounded capture proves actual execution and copy cost in this narrow
+arm. It does not profile the dominant masked backbone attention, all phases,
+or complete intermediate memory traffic. Expected full-model headroom is
+correspondingly limited. No third design or runtime-path broadening is added.
 
 ## Two bounded designs
 
@@ -76,8 +114,9 @@ executes each row's singleton QSA in serial order, preserving exact reduction.
 
 The candidate's scalar request-boundary toggle is
 `mlx_vlm.models.qwen4_exp.qsa_fast._FUSED_DECODE_KV_GATHER`, default `False`.
-The flag only changes the singleton gathered-QSA copy consumer, including each
-serial row of row-exact verification. Main should assert candidate engagement
+The flag only changes the singleton gathered-QSA copy consumer. Synthetic
+rank-two row-exact verification also reaches it, but the normal served
+backbone uses the masked path described above. Main should assert engagement
 through `_FUSED_DECODE_KV_GATHER_PROVEN` and that
 `_FUSED_DECODE_KV_GATHER_DISABLED` remains false. First engagement evaluates
 outputs eagerly to surface a build/launch failure safely; warm both ABBA arms.
