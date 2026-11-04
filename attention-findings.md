@@ -30,8 +30,9 @@ selection order, reductions, tail handling and stride-aware loads are reused.
 New focused coverage includes exact partition boundaries, actual s-class
 bit comparisons against MLX for QSA/all/sparse/empty-selected masks, independent
 cache and mask strides, explicit off/build-failure controls, and two-row
-verification followed by accepted-prefix trim and continuation. GPU execution
-is pending the exclusive slot. Only static/AST checks have run so far.
+verification followed by accepted-prefix trim and continuation. The latter
+runs independently and with prep-fusion enabled, checking both engagement
+counters and exact output/state after the accepted-prefix rollback.
 
 ## Prep-fusion
 
@@ -56,18 +57,44 @@ is byte-identical. These static assertions passed without importing MLX.
 The new independent preparation flag cannot enable complete s-class rows or
 alter which attention reduction plan runs.
 
-New numerical coverage is ready for BF16/FP32 raw q/k preparation at rows
+Validated numerical coverage includes BF16/FP32 raw q/k preparation at rows
 1/2/16/300, both position ranks, ordinary RoPE and YaRN; ordinary/gathered
 prefill, two-row verification, accepted-prefix rollback and continuation;
 explicit off, batch-two, external-position-embedding and readiness-failure
 controls. Every active case asserts actual preparation count increments and
-no fallback. These GPU checks have not yet run. CPU AST and diff checks pass.
+no fallback. Both flags remain independently default off.
 
-## Pending verification
+## Actual M4 validation
 
-Run both focused files with the pinned Python `-BIS` bootstrap, setting
-`sys.dont_write_bytecode=True` before source/r2 paths, appending supplied pure
-pytest paths, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, and `-p no:cacheprovider`.
-Main grants the only GPU slot before execution, then runs full-model ABBA and
-quality qualification only for useful, exact candidates. No performance or
-readiness claim is made from static checks alone.
+The exclusive small-fixture GPU run completed on actual `applegpu_g16s`:
+
+* 77 new focused checks passed in 9.08 seconds across
+  `tests/test_qwen4_masked_s_trial.py` and
+  `tests/test_qwen4_prep_fusion_trial.py`. Active masked and prep cases assert
+  real counter increments, exact bits and false failure states. Explicit
+  failure controls assert safe fallback without counting candidate work.
+* 121 existing checks passed in 1.37 seconds across QSA decode/gather,
+  reserved-capacity caches and fused attention. 179 existing d-only cases
+  skipped on this s-class device; the new checks supply actual s coverage.
+* A fresh import verified both enable flags false and original
+  `rows_available()` false on this M4. Complete-row and text-position static
+  assertions remain unchanged. No full model was loaded by the owner.
+
+Raw logs: `attention-numeric-initial.log` and
+`attention-existing-regression.log` in this round's private evidence directory.
+Commands used pinned Python `-BIS`, set `sys.dont_write_bytecode=True` before
+source/r2 paths, appended the supplied pure pytest paths, set
+`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, and invoked `pytest.main` with
+`['-q', '-p', 'no:cacheprovider', <absolute files>]`.
+
+Masked-s reuses MLX's existing partition-intermediate sizes: at the maximum
+1024 partitions, BF16 partials occupy 12 MiB plus 192 KiB for FP32 sums/maxs;
+at 28K/256 partitions, 3 MiB plus 48 KiB. It stores no derived cache bank.
+Preparation only returns the ordinary q/k outputs, uses no full KV copy,
+and caches only tiny readiness/scalar/kernel metadata. Production memory,
+admission, sampling, MTP depth and context settings are unchanged.
+
+These are exactness/state/fallback qualifications, not server performance
+claims. Main owns same-resident warmed full-model ABBA and any useful winner's
+production sampled-thinking, coding/tool, long-context and review gates.
+No installation, push or merge was performed by this owner.
