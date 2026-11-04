@@ -413,6 +413,9 @@ _DECODE_SDPA_DISABLED = False
 _DECODE_SDPA_KERNELS: list = []
 _DECODE_SDPA_VALIDATED: set[tuple] = set()
 _DECODE_SDPA_SCALES: dict[float, mx.array] = {}
+# Independent, default-off M4 trial. Keep the original d-class dispatch.
+MASKED_S_ENABLED = False
+MASKED_S_CALLS = 0
 
 _DECODE_SDPA_PASS1_SOURCE = r"""
     constexpr int BD = 32;
@@ -555,15 +558,21 @@ def _gpu_class() -> str:
 
 
 def _two_pass_blocks(n_simds: int, keys: int) -> int | None:
-    """MLX 0.32.2's sdpa_vector_2pass partition count; None where not transcribed."""
-
-    if _gpu_class() != "d" or n_simds < 6:
-        return None
-    if keys < 16384:
-        return 128
-    if keys < 65536:
-        return 512
-    return 1024
+    """Exact MLX 0.32.4 partitions; opt-in s-class arm above 8192 keys."""
+    gpu = _gpu_class()
+    if gpu == "d" and n_simds >= 6:
+        if keys < 16384:
+            return 128
+        if keys < 65536:
+            return 512
+        return 1024
+    if MASKED_S_ENABLED and gpu == "s" and n_simds > 4 and keys > 8192:
+        if keys <= 32768:
+            return 256
+        if keys <= 65536:
+            return 512
+        return 1024
+    return None
 
 
 def masked_decode_sdpa(
@@ -577,7 +586,7 @@ def masked_decode_sdpa(
     mask=mask)`` for one decode row with a bool key mask, bit for bit, visiting
     only the unmasked keys; None where MLX's kernel plan is not transcribed."""
 
-    global _DECODE_SDPA_DISABLED
+    global _DECODE_SDPA_DISABLED, MASKED_S_CALLS
     if _DECODE_SDPA_DISABLED:
         return None
     if queries.ndim != 4 or keys.ndim != 4 or values.ndim != 4 or mask.ndim != 4:
@@ -654,6 +663,8 @@ def masked_decode_sdpa(
         if signature not in _DECODE_SDPA_VALIDATED:
             mx.eval(output)
             _DECODE_SDPA_VALIDATED.add(signature)
+        if _gpu_class() == "s":
+            MASKED_S_CALLS += 1
         return output
     except Exception:
         _DECODE_SDPA_DISABLED = True
