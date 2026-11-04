@@ -88,3 +88,35 @@ GPU checks are in `logs/ple-gpu-tests.log` and
 `logs/ple-continuation-check.log`. No production/Hermes or full-model candidate
 ABBA is claimed. No full-model winner, installation, push or merge is justified
 by this screen. No second implementation was attempted.
+
+## Final full-model screen
+
+Main subsequently ran an isolated full-model comparison with the unchanged
+reviewed candidate source (`language.py` SHA-256
+`7d71c7e969ec90662a85200a567861c4d89877979fa910735fad114be328e737`).
+Evidence: `../../qwen-fixed-a/analysis.json`, `../../qwen-ple-a/analysis.json`,
+`../../matched-comparison.json` and `../../qwen-ple-a/instrumentation.json`.
+All eight candidate requests completed normally (`finish_reason=stop`). Every
+paired prompt hash, prompt/cache token count, answer hash and reasoning hash
+matches the baseline.
+
+Median TTFT, two requests per group:
+
+| Prompt/cache case | Baseline (s) | Dedup (s) |
+| --- | ---: | ---: |
+| Short cold | 3.2105 | 3.2060 |
+| Short reused | 0.9095 | 0.8900 |
+| Long cold | 41.0530 | 41.5405 |
+| Long reused | 1.4370 | 1.4460 |
+
+The two cold short requests saved only 6/3 ms; the cold long requests regressed
+by 203/772 ms. Final cumulative live counters, including warm-up, confirm
+engagement: 50 assembly calls, 1,240,800 rows, 656,630 unique rows and zero
+failures. These count assembly, rather than only consumed-prefetch hits.
+
+Whole-run host swap writes were 543.125 MiB for the candidate run and zero for
+baseline, below the unchanged cumulative 1 GiB guard. This is global host
+activity; the comparison does not establish that the candidate caused it.
+This small isolated screen establishes no useful speed win and does not
+establish a causal long-context slowdown. Reject promotion; retain the
+candidate default-off and archive-only. No source change followed the screen.
