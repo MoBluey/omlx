@@ -82,12 +82,16 @@ def test_masked_s_initial_launch_failure_and_off(monkeypatch):
     assert qsa.MASKED_S_CALLS == before
 
 
-def test_masked_s_verify_rollback_and_continuation(monkeypatch):
+@pytest.mark.parametrize("prep_enabled", [False, True])
+def test_masked_s_verify_rollback_and_continuation(monkeypatch, prep_enabled):
     if qsa._gpu_class() != "s":
         pytest.skip("actual s-class Metal required")
     import test_qwen4_verify_attention_rows as fixture
 
     monkeypatch.setattr(qsa, "_DECODE_SDPA_DISABLED", False)
+    fused = importlib.import_module("mlx_vlm.models.qwen4_exp.attn_fused")
+    monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", False)
+    monkeypatch.setattr(fused, "PREP_FUSION_DISABLED", False)
     attention = fixture._attention(seed=13)
     cache = fixture._prefill(attention, 8192, seed=14, chunk=512)
     baseline_cache, candidate_cache = fixture._copy_cache(cache), fixture._copy_cache(cache)
@@ -96,6 +100,8 @@ def test_masked_s_verify_rollback_and_continuation(monkeypatch):
     baseline = fixture._verify(attention, baseline_cache, x)
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
     before = qsa.MASKED_S_CALLS
+    prep_before = fused.PREP_FUSION_CALLS
+    monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", prep_enabled)
     candidate = fixture._verify(attention, candidate_cache, x)
     assert qsa.MASKED_S_CALLS == before + 2
     assert mx.array_equal(baseline.view(mx.uint16), candidate.view(mx.uint16)).item()
@@ -105,9 +111,13 @@ def test_masked_s_verify_rollback_and_continuation(monkeypatch):
     candidate_cache.trim(1)
     next_input = x[:, :1]
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", False)
+    monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", False)
     baseline = fixture._serial(attention, baseline_cache, next_input)
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
+    monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", prep_enabled)
     candidate = fixture._serial(attention, candidate_cache, next_input)
+    assert fused.PREP_FUSION_CALLS == prep_before + (2 if prep_enabled else 0)
+    assert not fused.PREP_FUSION_DISABLED
     assert qsa.MASKED_S_CALLS == before + 3
     assert not qsa._DECODE_SDPA_DISABLED
     assert mx.array_equal(baseline.view(mx.uint16), candidate.view(mx.uint16)).item()
