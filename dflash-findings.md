@@ -2,9 +2,42 @@
 
 Scope: exact installed source `0713dc8ea7d8e4a5b269a10cdbea4706a0e68240`, native adapter ported from `c3353b3d527b7212e6504db414980217928c379c` as `6dcd6ff0`. Default fixed-depth-1 MTP is unchanged. No installed runtime/settings changes. Full-model timings belong to main.
 
+## Full-model result: no keeper
+
+All three settings completed. Every variant matched all 10 compared baseline-a output hashes (six short, two 28K, two file edits). Correctness checks passed, but none demonstrated an end-to-end gain worth retaining. Keep fixed-depth-1 MTP as the default; no merge or runtime replacement is recommended.
+
+Median output tokens/second:
+
+| Setting | Short | 28K | File edit |
+| --- | ---: | ---: | ---: |
+| Baseline-a, fixed-depth-1 MTP | 56.315 | 48.050 | 121.220 |
+| Fixed DFlash block2 | 53.595 | 43.915 | 58.560 |
+| Fixed DFlash block3 | 43.275 | 42.040 | 67.270 |
+| Adaptive DFlash block3 | 51.555 | 32.910 | 53.545 |
+
+The runs used separate processes and encountered host variation. These are observed medians, not precise causal deltas. Main owns the fresh baseline-c control; this report does not depend on that unfinished run or claim its results.
+
+Adaptive block3's cold 28K request recorded 788,267,008 bytes (751.75 MiB) of new swap writes. Every other completed timing recorded zero new swap writes. This stayed below the private 1 GiB abort threshold but adds to the evidence against retaining adaptive block3.
+
+Exact private summaries, each recording medians, matched output counts and swap writes:
+
+- `/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-three-trials-20261104/dflash2-a/comparison-summary.json`
+- `/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-three-trials-20261104/dflash3-b/comparison-summary.json`
+- `/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-three-trials-20261104/dflash3-adaptive/comparison-summary.json`
+
+### Why file-copy acceleration is lost
+
+The external DFlash2 route disables context copying: `omlx/speculative/dflash/drafter.py:152` initialises `self.context_copy = False`. Qwen DFlash loading does not enable it; the only production assignment to true is in MiniMax DSpark setup (`omlx/patches/minimax_m3_dspark.py:297`).
+
+In `omlx/patches/mlx_lm_mtp/batch_generator.py:4618`, an external drafter calls `_context_copy_drafts` only when its `context_copy` flag is true. Ordinary MTP reaches `_context_copy_drafts` directly at line 4641. Therefore the tested external variants never enter the prompt-lookup copy route.
+
+There are additional limits even if that flag were enabled. External copies must fill `drafter.depth` exactly (`batch_generator.py:4624` and `4305`): block2 permits one copied token, below `ContextCopy`'s minimum two (`omlx/patches/mlx_lm_mtp/context_copy.py:42`); block3 permits only two. The native adapter also sets a four-row verify cap (`omlx/patches/mlx_vlm_qwen4_exp_compat/vendor/mlx_vlm/models/qwen4_exp/language.py:5037`), which disables wide 15-token copies through the cap check at `batch_generator.py:4289`. Baseline MTP has no adapter cap and can use wide copies. These secondary restrictions do not cause the initial route exclusion: the false flag already excludes copying.
+
+Observed file-edit summaries confirm the different routes. Baseline-a used 67/69 cycles with 709/706 accepted copy tokens; fixed block2 used 394 cycles for each edit, accepted one draft per cycle and recorded no copy activity. This explains the lost copy acceleration without attributing all measured throughput differences to it. No copy-path changes were implemented.
+
 ## Candidates and feasibility
 
-Only three settings are proposed: fixed block 2, fixed block 3, adaptive block 3. A block includes its confirmed anchor, hence these have at most one/two draft tokens.
+Only three settings were tested: fixed block 2, fixed block 3, adaptive block 3. A block includes its confirmed anchor, hence these have at most one/two draft tokens.
 
 ```text
 OMLX_QWEN4_DFLASH_TRIAL=1
