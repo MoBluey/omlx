@@ -1,0 +1,561 @@
+{
+  "disposition": "archive-only: batch evaluation candidate screened out before implementation",
+  "baseline": "0713dc8ea7d8e4a5b269a10cdbea4706a0e68240",
+  "records": [
+    {
+      "model": "qwen",
+      "request_index": 3,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/qwen-ttft-short-1-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 2436,
+        "cached_tokens": 0,
+        "completion_tokens": 800,
+        "ttft_s": 3.858,
+        "total_s": 17.81,
+        "prefill_tok_s": 631.4,
+        "decode_tok_s": 57.27,
+        "finish_reason": "stop",
+        "reasoning_chars": 1962,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 3.858006,
+        "first_answer_s": 11.070583,
+        "first_tool_s": null,
+        "reasoning_sha256": "1fe1b26104098604e67d3a54e69e6911ddc35156c9cd74cab46ee17e1e58b626"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 112,
+          "seconds": 0.0008665018249303102,
+          "max_seconds": 3.7624966353178024e-05
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 74,
+          "seconds": 0.012597628636285663,
+          "max_seconds": 0.0003823328297585249
+        },
+        "background:_serialize_extracted": {
+          "calls": 1,
+          "seconds": 0.012802459066733718,
+          "max_seconds": 0.012802459066733718
+        },
+        "background:save": {
+          "calls": 1,
+          "seconds": 0.013046375010162592,
+          "max_seconds": 0.013046375010162592
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 1,
+          "seconds": 0.013077792013064027,
+          "max_seconds": 0.013077792013064027
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 262144,
+        "Swapouts": 0,
+        "Pageins": 566444032,
+        "Pageouts": 131072,
+        "Compressions": 0,
+        "Decompressions": 40910848
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.3381642045143233,
+      "optimistic_all_eval_pct_ttft": 0.02245987104536833
+    },
+    {
+      "model": "qwen",
+      "request_index": 5,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/qwen-ttft-short-2-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 2436,
+        "cached_tokens": 0,
+        "completion_tokens": 757,
+        "ttft_s": 3.077,
+        "total_s": 15.097,
+        "prefill_tok_s": 791.7,
+        "decode_tok_s": 62.89,
+        "finish_reason": "stop",
+        "reasoning_chars": 1883,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 3.077171,
+        "first_answer_s": 9.185641,
+        "first_tool_s": null,
+        "reasoning_sha256": "7ecc469a11e0c4fd2d6e6c2c56724eb833b630e1327f4dc3a883960cd1c5b233"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 112,
+          "seconds": 0.0011013327166438103,
+          "max_seconds": 5.520903505384922e-05
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 74,
+          "seconds": 0.01573858642950654,
+          "max_seconds": 0.00045958394184708595
+        },
+        "background:_serialize_extracted": {
+          "calls": 1,
+          "seconds": 0.016026665922254324,
+          "max_seconds": 0.016026665922254324
+        },
+        "background:save": {
+          "calls": 1,
+          "seconds": 0.016414792044088244,
+          "max_seconds": 0.016414792044088244
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 1,
+          "seconds": 0.016482000006362796,
+          "max_seconds": 0.016482000006362796
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 704512,
+        "Swapouts": 0,
+        "Pageins": 325009408,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 53985280
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.5334674047477492,
+      "optimistic_all_eval_pct_ttft": 0.03579241848046182
+    },
+    {
+      "model": "qwen",
+      "request_index": 7,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/qwen-ttft-long-1-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 28280,
+        "cached_tokens": 0,
+        "completion_tokens": 942,
+        "ttft_s": 44.256,
+        "total_s": 62.198,
+        "prefill_tok_s": 639.0,
+        "decode_tok_s": 52.45,
+        "finish_reason": "stop",
+        "reasoning_chars": 2234,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 44.255963,
+        "first_answer_s": 53.523917,
+        "first_tool_s": null,
+        "reasoning_sha256": "47f4151a5398a89386d167f3f2b891744786717c3af5cbf151b36e8bd5d2033a"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 896,
+          "seconds": 0.008255201624706388,
+          "max_seconds": 0.00028033298440277576
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 592,
+          "seconds": 0.044725635554641485,
+          "max_seconds": 0.00038008298724889755
+        },
+        "background:_serialize_extracted": {
+          "calls": 8,
+          "seconds": 0.04696128913201392,
+          "max_seconds": 0.010020290967077017
+        },
+        "background:save": {
+          "calls": 8,
+          "seconds": 0.04927704366855323,
+          "max_seconds": 0.010305792093276978
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 7,
+          "seconds": 0.03922137292101979,
+          "max_seconds": 0.009804416913539171
+        },
+        "background:scheduler:boundary_capture_sync": {
+          "calls": 1,
+          "seconds": 0.003061041934415698,
+          "max_seconds": 0.003061041934415698
+        },
+        "background:scheduler:boundary_capture_extract": {
+          "calls": 1,
+          "seconds": 0.00016170809976756573,
+          "max_seconds": 0.00016170809976756573
+        },
+        "background:scheduler:boundary_snapshot_save": {
+          "calls": 1,
+          "seconds": 0.010313292033970356,
+          "max_seconds": 0.010313292033970356
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 1310720,
+        "Swapouts": 0,
+        "Pageins": 3542417408,
+        "Pageouts": 4571136,
+        "Compressions": 5095768064,
+        "Decompressions": 265453568
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.11134545297485818,
+      "optimistic_all_eval_pct_ttft": 0.018653293620540464
+    },
+    {
+      "model": "qwen",
+      "request_index": 9,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/qwen-ttft-long-2-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/qwen-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 28280,
+        "cached_tokens": 0,
+        "completion_tokens": 1151,
+        "ttft_s": 41.356,
+        "total_s": 61.892,
+        "prefill_tok_s": 683.8,
+        "decode_tok_s": 56.0,
+        "finish_reason": "stop",
+        "reasoning_chars": 2319,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 41.356179,
+        "first_answer_s": 51.440455,
+        "first_tool_s": null,
+        "reasoning_sha256": "6f698761af479967275c6498111944e03d51d89c4f1448f6cb676c9b3fb38c7b"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 896,
+          "seconds": 0.00810062955133617,
+          "max_seconds": 0.00027087493799626827
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 592,
+          "seconds": 0.04464912205003202,
+          "max_seconds": 0.0005353752057999372
+        },
+        "background:_serialize_extracted": {
+          "calls": 8,
+          "seconds": 0.046891959151253104,
+          "max_seconds": 0.010926041984930634
+        },
+        "background:save": {
+          "calls": 8,
+          "seconds": 0.049530211137607694,
+          "max_seconds": 0.011235125130042434
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 7,
+          "seconds": 0.04118495900183916,
+          "max_seconds": 0.011270999908447266
+        },
+        "background:scheduler:boundary_capture_sync": {
+          "calls": 1,
+          "seconds": 0.0029747500084340572,
+          "max_seconds": 0.0029747500084340572
+        },
+        "background:scheduler:boundary_capture_extract": {
+          "calls": 1,
+          "seconds": 0.00014062505215406418,
+          "max_seconds": 0.00014062505215406418
+        },
+        "background:scheduler:boundary_snapshot_save": {
+          "calls": 1,
+          "seconds": 0.008632875047624111,
+          "max_seconds": 0.008632875047624111
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 851968,
+        "Swapouts": 0,
+        "Pageins": 443301888,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 89653248
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.11976547813523478,
+      "optimistic_all_eval_pct_ttft": 0.019587555738795264
+    },
+    {
+      "model": "ornith",
+      "request_index": 3,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/ornith-ttft-short-1-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 2436,
+        "cached_tokens": 0,
+        "completion_tokens": 846,
+        "ttft_s": 1.306,
+        "total_s": 7.162,
+        "prefill_tok_s": 1864.8,
+        "decode_tok_s": 144.31,
+        "finish_reason": "stop",
+        "reasoning_chars": 2866,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 1.306514,
+        "first_answer_s": 5.190509,
+        "first_tool_s": null,
+        "reasoning_sha256": "7b868a1a2ec0df1af3bd6c75650660ca3f7060533ce974141eee6acd53aad402"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 61,
+          "seconds": 3.016623668372631e-05,
+          "max_seconds": 8.125090971589088e-06
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 60,
+          "seconds": 0.006037792656570673,
+          "max_seconds": 0.0002325829118490219
+        },
+        "background:_serialize_extracted": {
+          "calls": 1,
+          "seconds": 0.006295209052041173,
+          "max_seconds": 0.006295209052041173
+        },
+        "background:save": {
+          "calls": 1,
+          "seconds": 0.006602999987080693,
+          "max_seconds": 0.006602999987080693
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 1,
+          "seconds": 0.006643041968345642,
+          "max_seconds": 0.006643041968345642
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 458752,
+        "Swapouts": 0,
+        "Pageins": 106758144,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 7127040
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.5055895855345094,
+      "optimistic_all_eval_pct_ttft": 0.0023098190416329487
+    },
+    {
+      "model": "ornith",
+      "request_index": 5,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/ornith-ttft-short-2-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 2436,
+        "cached_tokens": 0,
+        "completion_tokens": 1292,
+        "ttft_s": 1.233,
+        "total_s": 10.287,
+        "prefill_tok_s": 1976.1,
+        "decode_tok_s": 142.59,
+        "finish_reason": "stop",
+        "reasoning_chars": 4946,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 1.232837,
+        "first_answer_s": 8.646117,
+        "first_tool_s": null,
+        "reasoning_sha256": "834bc8d5c50adfc6e1c956bb45e20b7346931bb2a0ecd4aeae17b90fc8e3777d"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 61,
+          "seconds": 1.971074379980564e-05,
+          "max_seconds": 6.083166226744652e-06
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 60,
+          "seconds": 0.004512335639446974,
+          "max_seconds": 0.00021545914933085442
+        },
+        "background:_serialize_extracted": {
+          "calls": 1,
+          "seconds": 0.00467841699719429,
+          "max_seconds": 0.00467841699719429
+        },
+        "background:save": {
+          "calls": 1,
+          "seconds": 0.004895250080153346,
+          "max_seconds": 0.004895250080153346
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 1,
+          "seconds": 0.0049217091873288155,
+          "max_seconds": 0.0049217091873288155
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 65536,
+        "Swapouts": 0,
+        "Pageins": 7405568,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 163840
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.3970194712208715,
+      "optimistic_all_eval_pct_ttft": 0.0015986004703816416
+    },
+    {
+      "model": "ornith",
+      "request_index": 7,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/ornith-ttft-long-1-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 28280,
+        "cached_tokens": 0,
+        "completion_tokens": 1066,
+        "ttft_s": 23.239,
+        "total_s": 34.519,
+        "prefill_tok_s": 1216.9,
+        "decode_tok_s": 94.42,
+        "finish_reason": "stop",
+        "reasoning_chars": 3494,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 23.239536,
+        "first_answer_s": 31.429682,
+        "first_tool_s": null,
+        "reasoning_sha256": "b8400a822575b4beabe16a7da603a943036fcc20aef82028c12288cbda9091b6"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 488,
+          "seconds": 0.0007643448188900948,
+          "max_seconds": 0.0005974168889224529
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 480,
+          "seconds": 0.029728321824222803,
+          "max_seconds": 0.0002704998478293419
+        },
+        "background:_serialize_extracted": {
+          "calls": 8,
+          "seconds": 0.03175641596317291,
+          "max_seconds": 0.00764637510292232
+        },
+        "background:save": {
+          "calls": 8,
+          "seconds": 0.03377645811997354,
+          "max_seconds": 0.008042374858632684
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 7,
+          "seconds": 0.025937623577192426,
+          "max_seconds": 0.005019041942432523
+        },
+        "background:scheduler:boundary_capture_sync": {
+          "calls": 1,
+          "seconds": 0.0014517500530928373,
+          "max_seconds": 0.0014517500530928373
+        },
+        "background:scheduler:boundary_capture_extract": {
+          "calls": 1,
+          "seconds": 5.8542005717754364e-05,
+          "max_seconds": 5.8542005717754364e-05
+        },
+        "background:scheduler:boundary_snapshot_save": {
+          "calls": 1,
+          "seconds": 0.008057041093707085,
+          "max_seconds": 0.008057041093707085
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 917504,
+        "Swapouts": 0,
+        "Pageins": 16760832,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 1769472
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.14534385352198262,
+      "optimistic_all_eval_pct_ttft": 0.0032890607121222716
+    },
+    {
+      "model": "ornith",
+      "request_index": 9,
+      "probe_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/ornith-ttft-long-2-cold.json",
+      "instrumentation_path": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/ornith-profile-a/instrumentation.json",
+      "result": {
+        "prompt_tokens": 28280,
+        "cached_tokens": 0,
+        "completion_tokens": 1358,
+        "ttft_s": 24.329,
+        "total_s": 39.325,
+        "prefill_tok_s": 1162.4,
+        "decode_tok_s": 90.49,
+        "finish_reason": "stop",
+        "reasoning_chars": 4700,
+        "tool_calls": [],
+        "first_tool_delta_named": false,
+        "first_reasoning_s": 24.329579,
+        "first_answer_s": 35.745314,
+        "first_tool_s": null,
+        "reasoning_sha256": "893d67b246bc76ab919bcbee95c2fb2a2fa70e75df31dccba8936835f063b84c"
+      },
+      "metrics": {
+        "background:snapshot_mx_eval": {
+          "calls": 488,
+          "seconds": 0.000850181095302105,
+          "max_seconds": 0.000605541979894042
+        },
+        "background:snapshot_tensor_export": {
+          "calls": 480,
+          "seconds": 0.02813604846596718,
+          "max_seconds": 0.0002974998205900192
+        },
+        "background:_serialize_extracted": {
+          "calls": 8,
+          "seconds": 0.030149624915793538,
+          "max_seconds": 0.005596917122602463
+        },
+        "background:save": {
+          "calls": 8,
+          "seconds": 0.03213791432790458,
+          "max_seconds": 0.0058865409810096025
+        },
+        "background:_on_prefill_boundary_snapshot": {
+          "calls": 7,
+          "seconds": 0.027913792291656137,
+          "max_seconds": 0.005917208967730403
+        },
+        "background:scheduler:boundary_capture_sync": {
+          "calls": 1,
+          "seconds": 0.0013155408669263124,
+          "max_seconds": 0.0013155408669263124
+        },
+        "background:scheduler:boundary_capture_extract": {
+          "calls": 1,
+          "seconds": 4.787510260939598e-05,
+          "max_seconds": 4.787510260939598e-05
+        },
+        "background:scheduler:boundary_snapshot_save": {
+          "calls": 1,
+          "seconds": 0.004441374912858009,
+          "max_seconds": 0.004441374912858009
+        }
+      },
+      "vm_delta_bytes": {
+        "Swapins": 66256896,
+        "Swapouts": 0,
+        "Pageins": 322109440,
+        "Pageouts": 0,
+        "Compressions": 0,
+        "Decompressions": 121274368
+      },
+      "monitor_error": null,
+      "optimistic_all_save_pct_ttft": 0.13209714467468692,
+      "optimistic_all_eval_pct_ttft": 0.0034945172234868054
+    }
+  ],
+  "limitations": [
+    "Nested phase durations overlap and must not be added.",
+    "Per-request metrics include terminal/decode captures after first token.",
+    "All-evaluation upper bound includes required initial payload evaluation.",
+    "Raw byte copies preserve immutable snapshots and are not removed by batching.",
+    "Qwen long-1 diagnostic input capture added 25.366ms; no candidate comparison is claimed."
+  ]
+}
