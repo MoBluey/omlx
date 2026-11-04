@@ -3352,6 +3352,8 @@ _PLE_PAGE_SIZE = os.sysconf("SC_PAGE_SIZE")
 _PLE_REARM_FLOOR_SECONDS = 0.0005
 _PLE_REARM_PER_ROW_SECONDS = 2e-6
 _PLE_REARM_MIN_INTERVAL_SECONDS = 60.0
+# Bounded prompt-only experiment; preserve the normal assembly route by default.
+_PLE_PREFILL_DEDUP_TRIAL = os.environ.get("OMLX_QWEN4_PLE_PREFILL_DEDUP_TRIAL") == "1"
 
 
 class _SafeTensorMMap:
@@ -3571,6 +3573,8 @@ class DiskBackedShardedEmbedding(nn.Module):
         self.rows_read = 0
         self.last_uploads = 0
         self.last_prefetch_hit = False
+        self.prefill_dedup_stats = {"calls": 0, "rows": 0, "unique_rows": 0, "failures": 0}
+        self._prefill_dedup_lock = Lock()
         self._pending: dict[bytes, tuple] = {}
         self._prefetch_lock = Lock()
         self._prefetch_closed = False
@@ -3748,6 +3752,29 @@ class DiskBackedShardedEmbedding(nn.Module):
     def _require_owner(self):
         _ple_require_owner(self._owner_pid)
 
+    def _assemble_prefill_deduplicated(self, host: np.ndarray, plan):
+        """Read each prompt row once, then restore raw rows to their original order."""
+        try:
+            unique, inverse = np.unique(host, return_inverse=True)
+            with self._prefill_dedup_lock:
+                self.prefill_dedup_stats["calls"] += 1
+                self.prefill_dedup_stats["rows"] += int(host.size)
+                self.prefill_dedup_stats["unique_rows"] += int(unique.size)
+            if unique.size == host.size:
+                return self._assemble(host, plan)
+            # The same touched shards retain the already-validated uniform layout.
+            buffers = self._assemble(unique, self._plan(unique))
+            return {family: buffer[inverse] for family, buffer in buffers.items()}
+        except BaseException:
+            with self._prefill_dedup_lock:
+                self.prefill_dedup_stats["failures"] += 1
+            raise
+
+    def _assembler(self, indices):
+        if _PLE_PREFILL_DEDUP_TRIAL and len(indices.shape) > 1 and indices.shape[1] > 2:
+            return self._assemble_prefill_deduplicated
+        return self._assemble
+
     def _host_indices(self, indices: mx.array) -> np.ndarray:
         self._require_owner()
         flat = indices.reshape(-1)
@@ -3777,7 +3804,7 @@ class DiskBackedShardedEmbedding(nn.Module):
                 future.cancel()
             self._pending[key] = (
                 plan,
-                self._prefetch_executor.submit(self._assemble, host, plan),
+                self._prefetch_executor.submit(self._assembler(indices), host, plan),
             )
 
     def __call__(self, indices: mx.array) -> mx.array:
@@ -3801,7 +3828,7 @@ class DiskBackedShardedEmbedding(nn.Module):
             plan = self._plan(host)
             if plan is None:
                 return self._gather_per_shard([int(index) for index in host], shape)
-            buffers = self._assemble(host, plan)
+            buffers = self._assembler(indices)(host, plan)
         _, _, touched, _, families, dtypes, bits, group_size = plan
         self.last_touched_shards = tuple(touched)
         self.rows_read = int(host.size)

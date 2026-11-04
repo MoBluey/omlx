@@ -2030,9 +2030,12 @@ def _disk_ple(tmp_path, *, shards, rows, dims, bits=None, dtype=mx.bfloat16):
 
 @pytest.mark.parametrize("dtype", [mx.bfloat16, mx.float16])
 @pytest.mark.parametrize("bits", [None, 4, 5])
-def test_disk_backed_ple_gathers_a_chunk_with_one_upload_per_tensor(tmp_path, bits, dtype):
+@pytest.mark.parametrize("deduplicate", [False, True])
+def test_disk_backed_ple_gathers_a_chunk_with_one_upload_per_tensor(tmp_path, bits, dtype, deduplicate, monkeypatch):
     """A chunk's rows are assembled on the host and uploaded once per tensor, not once per shard."""
     embedding, table = _disk_ple(tmp_path, shards=3, rows=8, dims=64, bits=bits, dtype=dtype)
+    from mlx_vlm.models.qwen4_exp import language
+    monkeypatch.setattr(language, "_PLE_PREFILL_DEDUP_TRIAL", deduplicate)
     mx.random.seed(11)
     indices = mx.random.randint(0, 24, (2, 40)).astype(mx.int32)
     mx.eval(indices)
@@ -2044,6 +2047,8 @@ def test_disk_backed_ple_gathers_a_chunk_with_one_upload_per_tensor(tmp_path, bi
     assert embedding.rows_read == 80
     assert embedding.last_touched_shards == (0, 1, 2)
     assert embedding.last_uploads == (1 if bits is None else 3)
+    assert embedding.prefill_dedup_stats["calls"] == int(deduplicate)
+    assert embedding.prefill_dedup_stats["failures"] == 0
     embedding.close()
 
 
@@ -2054,9 +2059,12 @@ def test_disk_backed_ple_rejects_out_of_range_indices(tmp_path):
     embedding.close()
 
 
-def test_disk_backed_ple_prefetch_serves_the_matching_call(tmp_path):
+@pytest.mark.parametrize("deduplicate", [False, True])
+def test_disk_backed_ple_prefetch_serves_the_matching_call(tmp_path, deduplicate, monkeypatch):
     """A prefetched chunk is assembled off the main thread and consumed by the next call with the same indices."""
     embedding, table = _disk_ple(tmp_path, shards=3, rows=8, dims=64, bits=5)
+    from mlx_vlm.models.qwen4_exp import language
+    monkeypatch.setattr(language, "_PLE_PREFILL_DEDUP_TRIAL", deduplicate)
     first = mx.array([[3, 17, 5, 22, 3, 9]], dtype=mx.int32)
     other = mx.array([[1, 2]], dtype=mx.int32)
     embedding.prefetch(first)
@@ -2078,7 +2086,65 @@ def test_disk_backed_ple_prefetch_serves_the_matching_call(tmp_path):
     mx.eval(values)
     assert embedding.last_prefetch_hit is False
     assert mx.array_equal(values, mx.take(table, other.reshape(-1), axis=0)[None]).item()
+    assert embedding.prefill_dedup_stats["calls"] == 2 * int(deduplicate)
+    assert embedding.prefill_dedup_stats["failures"] == 0
     embedding.close()
+
+
+def test_disk_ple_dedup_prefill_restore_rollback_and_continuation(tmp_path, monkeypatch):
+    """The actual disk prompt route leaves model state and later decode bit-equal."""
+    from mlx_vlm.models.qwen4_exp import language
+    from omlx.cache.type_registry import CacheTypeRegistry
+    from omlx.models.vlm import VLMModelAdapter
+
+    config = _tiny_config()
+    model = language.LanguageModel(config.text_config, config)
+    outer = model.model.layers[0].ple.ple_embedding
+    resident = outer.ngram_embedding
+    tensors = {f"table.shard_{i}.weight": shard.weight.astype(mx.bfloat16)
+               for i, shard in enumerate(resident.shards)}
+    mx.eval(*tensors.values())
+    mx.save_safetensors(str(tmp_path / "rows.safetensors"), tensors)
+    (tmp_path / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": dict.fromkeys(tensors, "rows.safetensors")})
+    )
+    disk = language.DiskBackedShardedEmbedding(
+        tmp_path, "table", sum(resident.shard_sizes), resident.dims, len(resident.shards)
+    )
+    outer.ngram_embedding = disk
+    prefix = mx.array([[2, 2, 3, 4, 2, 3, 1, 2]], dtype=mx.int32)
+    results = []
+    try:
+        for enabled in (False, True):
+            monkeypatch.setattr(language, "_PLE_PREFILL_DEDUP_TRIAL", enabled)
+            cache = model.make_cache()
+            model.prefetch_ple(prefix, prefix[:, :0])
+            prefilled = model(prefix, cache=cache)
+            mx.eval(prefilled.logits)
+            assert disk.last_prefetch_hit
+            restored = []
+            for entry in cache:
+                handler = CacheTypeRegistry.get_handler_by_class_name(type(entry).__name__)
+                state = handler.extract_state(entry)
+                restored.append(handler.reconstruct_cache(state, **(
+                    {"token_count": prefix.shape[1]} if type(entry).__name__ == "ArraysCache" else {}
+                )))
+            restored = VLMModelAdapter(SimpleNamespace(language_model=model)).restore_cache(restored)
+            verified = model(mx.array([[5, 6]], dtype=mx.int32), cache=restored, return_hidden=True)
+            mx.eval(verified.logits)
+            model.rollback_speculative_cache(restored, verified.gdn_states, accepted=0, block_size=2)
+            continued = model(mx.array([[7]], dtype=mx.int32), cache=restored)
+            arrays = _cache_arrays(restored)
+            mx.eval(continued.logits, arrays)
+            results.append([prefilled.logits, verified.logits, continued.logits, *arrays])
+        assert len(results[0]) == len(results[1])
+        for baseline, candidate in zip(*results):
+            assert mx.array_equal(baseline, candidate).item()
+        assert disk.prefill_dedup_stats["calls"] == 1
+        assert disk.prefill_dedup_stats["unique_rows"] < disk.prefill_dedup_stats["rows"]
+        assert disk.prefill_dedup_stats["failures"] == 0
+    finally:
+        disk.close()
 
 
 def test_prompt_loop_prefetches_the_next_chunk(monkeypatch):

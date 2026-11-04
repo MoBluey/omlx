@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.15, pytest-9.0.3, pluggy-1.6.0
+rootdir: /Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/worktrees/ple
+configfile: pytest.ini (WARNING: ignoring pytest config in pyproject.toml!)
+collected 101 items / 67 deselected / 34 selected
+
+tests/test_mlx_vlm_qwen4_exp_compat.py ................................. [ 97%]
+.                                                                        [100%]
+
+====================== 34 passed, 67 deselected in 6.85s =======================

@@ -1,0 +1,66 @@
+{
+  "source": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/ttft-four-20261105/worktrees/ple",
+  "model": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/models/candidates/omlx/jedisct1/Qwen3.8-Flash-Next-Uncensored-oQ4e-100K-MTP",
+  "pid": 15369,
+  "rows": 39088,
+  "unique_rows": 22248,
+  "touched_shards": 128,
+  "first_observed_baseline_seconds": 0.4992820001207292,
+  "records": [
+    {
+      "label": "A",
+      "seconds": 0.015069792047142982,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "B",
+      "seconds": 0.014651665929704905,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "B",
+      "seconds": 0.013599749887362123,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "A",
+      "seconds": 0.014349041040986776,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "A",
+      "seconds": 0.014363375026732683,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "B",
+      "seconds": 0.013160791015252471,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "B",
+      "seconds": 0.01347670890390873,
+      "buffer_bytes": 3908800
+    },
+    {
+      "label": "A",
+      "seconds": 0.01390050002373755,
+      "buffer_bytes": 3908800
+    }
+  ],
+  "medians": {
+    "A": 0.01435620803385973,
+    "B": 0.013538229395635426
+  },
+  "raw_equal": true,
+  "gpu_equal": true,
+  "prefill_dedup_stats": {
+    "calls": 5,
+    "rows": 195440,
+    "unique_rows": 111240,
+    "failures": 0
+  },
+  "max_rss_bytes": 1508917248,
+  "swap_write_bytes": 0,
+  "limitation": "Synthetic indices at the measured short-prompt duplication ratio; warmed page-cache component only, no TTFT or model load."
+}
