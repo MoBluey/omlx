@@ -69,6 +69,10 @@ _PLE_RUNTIME_MODEL_PATH: Path | None = None
 _PLE_RUNTIME_MODE = "resident"
 _HYPER_SPLIT_INDICES: dict[tuple[int, int], tuple[mx.array, mx.array]] = {}
 
+# Private trial switch: change only at an idle request boundary.
+_QSA_FP32_BANK_ENABLED = False
+_QSA_FP32_BANK_STATS = {"calls": 0, "blocks_cast": 0, "allocations": 0}
+
 
 def _rank_two_text_position_ids(
     position_ids: Optional[mx.array],
@@ -387,6 +391,8 @@ class _QSAIndexerCache:
         self._pooled_index_offset = 0
         self._pooled_index_ratio = None
         self._pooled_index_tag = None
+        self._pooled_index_keys_f32 = None
+        self._pooled_index_f32_offset = 0
 
     def pooled_indexer_keys(
         self,
@@ -398,6 +404,9 @@ class _QSAIndexerCache:
     ) -> mx.array:
         """Return the completed block bank, computing only its new suffix."""
 
+        if not _QSA_FP32_BANK_ENABLED:
+            self._pooled_index_keys_f32 = None
+            self._pooled_index_f32_offset = 0
         if self._index_keys is None or self._index_position_ids is None:
             raise ValueError("QSA pooled keys require raw indexer state")
         complete_blocks = self._index_offset // compress_ratio
@@ -454,6 +463,42 @@ class _QSAIndexerCache:
             )
         return self._pooled_index_keys[:, : self._pooled_index_offset]
 
+    def pooled_indexer_keys_f32(
+        self,
+        compress_ratio: int,
+        index_key_norm,
+        apply_index_rope,
+        *,
+        cache_tag=None,
+    ) -> mx.array:
+        """The completed block bank in FP32, the portable score GEMM's operand:
+        new blocks are cast as they complete instead of the whole bank on every
+        decode step (capacity growth rebuilds it). The values are exact.
+        The default-off trial returns the original bank without retaining FP32."""
+
+        pooled = self.pooled_indexer_keys(
+            compress_ratio, index_key_norm, apply_index_rope, cache_tag=cache_tag
+        )
+        if not _QSA_FP32_BANK_ENABLED:
+            return pooled
+        _QSA_FP32_BANK_STATS["calls"] += 1
+        bank = self._pooled_index_keys
+        if bank is None:
+            return pooled.astype(mx.float32)
+        offset = self._pooled_index_offset
+        mirror = self._pooled_index_keys_f32
+        start = self._pooled_index_f32_offset
+        if mirror is None or mirror.shape != bank.shape:
+            mirror = mx.zeros(bank.shape, dtype=mx.float32)
+            start = 0
+            _QSA_FP32_BANK_STATS["allocations"] += 1
+        if start < offset:
+            mirror[:, start:offset] = bank[:, start:offset].astype(mx.float32)
+            _QSA_FP32_BANK_STATS["blocks_cast"] += offset - start
+        self._pooled_index_keys_f32 = mirror
+        self._pooled_index_f32_offset = offset
+        return mirror[:, :offset]
+
     def _trim_indexer(self, length: int):
         self._index_offset = min(self._index_offset, max(0, int(length)))
         # Trim leaves completed prefix blocks intact; only re-pool the new tail.
@@ -461,6 +506,9 @@ class _QSAIndexerCache:
             self._pooled_index_offset = min(
                 self._pooled_index_offset,
                 self._index_offset // self._pooled_index_ratio,
+            )
+            self._pooled_index_f32_offset = min(
+                self._pooled_index_f32_offset, self._pooled_index_offset
             )
         else:
             self._invalidate_pooled_indexer()
@@ -472,6 +520,7 @@ class _QSAIndexerCache:
             self._index_keys,
             self._index_position_ids,
             self._pooled_index_keys,
+            self._pooled_index_keys_f32,
         ):
             if array is not None:
                 size += array.nbytes
@@ -1711,7 +1760,8 @@ class Qwen4ExpQSAIndexer(nn.Module):
 
         query = self._apply_rope(query, position_ids)
         if cache is not None and hasattr(cache, "pooled_indexer_keys"):
-            pooled_keys = cache.pooled_indexer_keys(
+            # The FP32 values the selection mask scores with (no per-call cast).
+            pooled_keys = cache.pooled_indexer_keys_f32(
                 self.compress_ratio,
                 self.k_layernorm,
                 self._apply_rope,
@@ -2189,7 +2239,7 @@ class Qwen4ExpAttention(Qwen3_5Attention):
         ).transpose(0, 2, 1, 3)
         raw_index_keys = projected[:, :, self.indexer.n_heads :].squeeze(2)
         cache.update_indexer(raw_index_keys, text_position_ids)
-        pooled_index_keys = cache.pooled_indexer_keys(
+        pooled_index_keys = cache.pooled_indexer_keys_f32(
             self.indexer.compress_ratio,
             self.indexer.k_layernorm,
             self.indexer._apply_rope,
@@ -2325,7 +2375,7 @@ class Qwen4ExpAttention(Qwen3_5Attention):
             row_keys = keys[..., :key_tokens, :]
             row_values = values[..., :key_tokens, :]
             if key_tokens // self.indexer.compress_ratio > self.indexer.block_topk:
-                pooled_index_keys = cache.pooled_indexer_keys(
+                pooled_index_keys = cache.pooled_indexer_keys_f32(
                     self.indexer.compress_ratio,
                     self.indexer.k_layernorm,
                     self.indexer._apply_rope,
@@ -2441,7 +2491,7 @@ class Qwen4ExpAttention(Qwen3_5Attention):
         cache.update_indexer(projected[:, :, indexer.n_heads :].squeeze(2), index_positions)
         index_queries = indexer._apply_rope(index_queries, index_positions)
         pooled_keys = mx.expand_dims(
-            cache.pooled_indexer_keys(
+            cache.pooled_indexer_keys_f32(
                 indexer.compress_ratio,
                 indexer.k_layernorm,
                 indexer._apply_rope,
