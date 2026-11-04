@@ -1,9 +1,9 @@
 # Remaining Qwen GPU operations, 4 November 2026
 
-Status: current Qwen short/28K capture and fused-gather numerical checks
-completed. Down2 tiling is rejected. One default-off fused K/V gather candidate
-is undergoing main's same-resident ABBA. Its narrow steady-state coverage is
-described below. No change is accepted or installed.
+Status: both bounded designs completed and rejected for promotion. Down2
+tiling did not improve its measured operation. The fused K/V gather preserved
+bits but produced no useful full-model gain. Its narrow steady-state coverage
+is described below. No change is accepted or installed.
 
 ## Scope and provenance
 
@@ -163,7 +163,37 @@ fallback. Median latency, microseconds:
 | 28288 / 2048 | 148.312 | 124.438 |
 
 Evidence: `gpu-pair-microcheck-grid.json`; the slower initial grid is retained
-as `gpu-pair-microcheck.json`. This motivates full-model measurement and does
-not establish an end-to-end gain. Main owns warmed short/28K 700-token ABBA,
-file edits, any winner's production quality checks and fresh review. No push,
-merge, installation or production configuration change is authorised here.
+as `gpu-pair-microcheck.json`. This operation-level improvement motivated the
+full-model trial; it did not predict its measured result.
+
+## Full-model result and decision
+
+`gather-abba-b/comparison-summary.json` records main's warmed, same-resident
+short/28K two-block ABBA, 700 output tokens per request. All 16 timed outputs
+are exact within each phase, and every timed request records zero new swap
+writes.
+
+| Workload | A: existing pair, tokens/s | B: fused pair, tokens/s | Observed median delta |
+| --- | ---: | ---: | ---: |
+| Short | 53.225 | 41.760 | -21.54% |
+| 28K | 37.925 | 38.035 | +0.290% |
+
+The short candidate rates span 39.59 to 61.38 tokens/s, with severe variation
+across this working host. The observed median difference does not establish
+a precise causal slowdown from this narrow kernel change. The 28K blocks
+show +0.662% and +0.454%, too small to support a useful improvement here.
+Neither the isolated-copy gain nor an unqualified throughput point justifies
+promotion. Keep the existing default-off behaviour and stop this design.
+
+Per-boundary counters validate flag effectiveness: each timed short B adds
+113 factory invocations, each timed long B adds 111, and every A adds zero.
+Following request boundaries cover every B request and all no-disable
+assertions pass. Process shutdown bypassed the atexit final engagement file;
+that file is absent, and is not claimed as evidence. The final request was
+a control. Every candidate request has a following recorded boundary.
+
+These results reject the two tested implementations on this setup. They do
+not claim complete backbone attention/intermediate-memory profiling or reject
+every possible GPU optimisation. No third design, runtime-path broadening,
+installation or production configuration change is added. Main owns final
+reporting, review and authorised push steps.
