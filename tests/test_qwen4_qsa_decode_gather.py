@@ -1704,8 +1704,9 @@ def test_batch_gather_rows_below_the_crossover_keep_the_dense_path(monkeypatch):
     )
 
 
+@pytest.mark.parametrize("candidate", ["fp32-bank", "select-barriers", "both"])
 @pytest.mark.parametrize("position_rank", [2, 3])
-def test_fp32_bank_verify_accepted_prefix_and_continuation(monkeypatch, position_rank):
+def test_indexer_trials_verify_accepted_prefix_and_continuation(monkeypatch, position_rank, candidate):
     """Production attention producers/consumers, a four-row verify with two
     accepted rows, then different continuation rows. No model weights loaded."""
     config, attention, (trial, baseline) = _attention_and_caches(3001)
@@ -1714,8 +1715,13 @@ def test_fp32_bank_verify_accepted_prefix_and_continuation(monkeypatch, position
         "calls": 0, "blocks_cast": 0, "allocations": 0,
     })
 
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_STATS", {
+        "mask": 0, "tokens": 0, "failures": 0,
+    })
+
     def run(hidden, cache, enabled, verify=False):
-        monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", enabled)
+        monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", enabled and candidate != "select-barriers")
+        monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", enabled and candidate != "fp32-bank")
         positions = mx.arange(cache.offset, cache.offset + hidden.shape[1], dtype=mx.int32)[None]
         if position_rank == 3:
             positions = mx.broadcast_to(positions[None], (3, 1, hidden.shape[1]))
@@ -1727,15 +1733,72 @@ def test_fp32_bank_verify_accepted_prefix_and_continuation(monkeypatch, position
     actual = run(window, trial, True, verify=True)
     expected = run(window, baseline, False, verify=True)
     assert mx.array_equal(actual.view(mx.uint16), expected.view(mx.uint16)).item()
-    assert trial._pooled_index_keys_f32 is not None
+    assert (trial._pooled_index_keys_f32 is not None) == (candidate != "select-barriers")
     assert baseline._pooled_index_keys_f32 is None
     assert trial.trim(2) == baseline.trim(2) == 2
-    assert trial._pooled_index_f32_offset == trial.offset // RATIO
+    if candidate != "select-barriers":
+        assert trial._pooled_index_f32_offset == trial.offset // RATIO
     for _ in range(5):
         hidden = mx.random.normal((1, 1, config.hidden_size)).astype(mx.bfloat16)
         actual, expected = run(hidden, trial, True), run(hidden, baseline, False)
         assert mx.array_equal(actual.view(mx.uint16), expected.view(mx.uint16)).item()
         for a, b in zip(trial.state, baseline.state):
             assert mx.array_equal(a, b).item()
-    assert language._QSA_FP32_BANK_STATS["calls"] >= 6
-    assert language._QSA_FP32_BANK_STATS["blocks_cast"] > 0
+    if candidate != "select-barriers":
+        assert language._QSA_FP32_BANK_STATS["calls"] >= 6
+        assert language._QSA_FP32_BANK_STATS["blocks_cast"] > 0
+    else:
+        assert language._QSA_FP32_BANK_STATS["calls"] == 0
+    if candidate != "fp32-bank":
+        output = "tokens" if position_rank == 2 else "mask"
+        assert qsa_fast._DECODE_SELECT_REDUCED_BARRIERS_STATS[output] >= 6
+        assert qsa_fast._DECODE_SELECT_REDUCED_BARRIERS_STATS["failures"] == 0
+        assert not any(key[0] == "reduced" for key in qsa_fast._DECODE_SELECT_FAILED)
+
+
+@pytest.mark.parametrize("key_len", [2052, 4100, 8197, 24003, 32773, 64003, 100003])
+@pytest.mark.parametrize("kind", ["normal", "magnitudes", "cutoff_ties", "specials"])
+@pytest.mark.parametrize("tokens", [False, True])
+def test_reduced_barriers_selection_is_exact_without_fallback(monkeypatch, key_len, kind, tokens):
+    blocks = key_len // RATIO
+    shape = (1, 1, 4, blocks) if tokens else (1, 4, 1, blocks)
+    scores = mx.array(_head_scores(blocks, kind, key_len).reshape(shape))
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", True)
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_STATS", {
+        "mask": 0, "tokens": 0, "failures": 0,
+    })
+    actual = qsa_fast._decode_block_selection(scores, HEAD_DIM, key_len, RATIO, TOPK, tokens)
+    assert actual is not None, qsa_fast._DECODE_SELECT_FAILED
+    expected = _official_gathered_tokens(scores, key_len) if tokens else _official_mask(scores, key_len)
+    mx.eval(actual, expected)
+    assert mx.array_equal(actual, expected).item()
+    output = "tokens" if tokens else "mask"
+    assert qsa_fast._DECODE_SELECT_REDUCED_BARRIERS_STATS == {
+        "mask": int(not tokens), "tokens": int(tokens), "failures": 0,
+    }
+    assert output + "_reduced" in qsa_fast._DECODE_SELECT_KERNELS
+    assert not any(key[0] == "reduced" for key in qsa_fast._DECODE_SELECT_FAILED)
+    # Toggling back uses the original separately cached kernel and signature.
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", False)
+    original = qsa_fast._decode_block_selection(scores, HEAD_DIM, key_len, RATIO, TOPK, tokens)
+    assert original is not None, qsa_fast._DECODE_SELECT_FAILED
+    assert mx.array_equal(actual, original).item()
+    assert qsa_fast._DECODE_SELECT_REDUCED_BARRIERS_STATS[output] == 1
+
+
+def test_reduced_barriers_failure_is_reported_and_baseline_still_runs(monkeypatch):
+    scores = mx.ones((1, 4, 1, 600), dtype=mx.float32)
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", True)
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_STATS", {
+        "mask": 0, "tokens": 0, "failures": 0,
+    })
+
+    def failed(**kwargs):
+        raise ValueError("trial pipeline unavailable")
+
+    monkeypatch.setitem(qsa_fast._DECODE_SELECT_KERNELS, "mask_reduced", failed)
+    assert qsa_fast._decode_block_selection(scores, HEAD_DIM, 2400, RATIO, TOPK, False) is None
+    assert qsa_fast._DECODE_SELECT_REDUCED_BARRIERS_STATS["failures"] == 1
+    assert any(key[0] == "reduced" for key in qsa_fast._DECODE_SELECT_FAILED)
+    monkeypatch.setattr(qsa_fast, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", False)
+    assert qsa_fast._decode_block_selection(scores, HEAD_DIM, 2400, RATIO, TOPK, False) is not None
