@@ -303,7 +303,8 @@ def test_batched_forward_matches_rows_drafted_alone(make_drafter, window):
     assert batched.context_length(2) == sum(rows[2][0] for rows in plan if 2 in rows)
 
 
-def test_predraft_adopt_matches_drafting_committed_rows():
+@pytest.mark.parametrize("block", [2, 3, 4])
+def test_predraft_adopt_matches_drafting_committed_rows(block):
     """A predraft over every verify row equals drafting the committed rows, and
     a discarded one leaves the ring as it was, across ring wrap-around."""
 
@@ -330,10 +331,11 @@ def test_predraft_adopt_matches_drafting_committed_rows():
                 )
         return state.drafts.tolist()
 
-    counts = [2, 4, 1, 4, 3, 2, 4, 1]
+    counts = [min(count, block) for count in [2, 4, 1, 4, 3, 2, 4, 1]]
     for mode in ("adopt", "discard"):
         plain, other = _tiny_drafter(), _tiny_drafter()
         for d in (plain, other):
+            d.block_size, d.depth = block, block - 1
             d.seed(0, _captured(WINDOW - 3, seed=77))
             d.draft(
                 [
@@ -349,7 +351,7 @@ def test_predraft_adopt_matches_drafting_committed_rows():
                 ]
             )
         for step, count in enumerate(counts):
-            captured = _captured(BLOCK, seed=500 + step)
+            captured = _captured(block, seed=500 + step)
             expected = cycle(plain, 0, captured, count, step + 3, "plain")
             assert cycle(other, 0, captured, count, step + 3, mode) == expected
         assert other.context_length(0) == plain.context_length(0)
@@ -798,12 +800,13 @@ class _Selector(nn.Module):
         self.hidden_projection = nn.Linear(hidden, rank, bias=False)
 
 
-def test_fused_selector_matches_candidate_sampling():
+@pytest.mark.parametrize("length", [1, 2, 3])
+def test_fused_selector_matches_candidate_sampling(length):
     """One-launch selector: q equals ``_sample_candidates`` on the same path."""
     from omlx.utils.sampling import make_sampler, top_k_indices
 
     mx.random.seed(8)
-    vocab, rank, hidden, batch, length = 600, 64, 32, 2, BLOCK - 1
+    vocab, rank, hidden, batch = 600, 64, 32, 2
     selector = _Selector(vocab, rank, hidden)
     selector.update(
         nn.utils.tree_map(lambda p: (p * 3).astype(mx.bfloat16), selector.parameters())
@@ -814,7 +817,7 @@ def test_fused_selector_matches_candidate_sampling():
     candidates = top_k_indices(logits, 16)
     unary = mx.take_along_axis(logits, candidates, axis=-1).astype(mx.float32)
     projected = selector.hidden_projection(states).astype(mx.float32)
-    for sampler in (make_sampler(temp=1.0, top_p=0.9, top_k=12), None):
+    for sampler in (make_sampler(temp=1.0, top_p=0.95, top_k=20), None):
         assert selection.fused_select_eligible(selector, states)
         proposals = selection.select_fused(
             selector, states, logits, anchors, [sampler, sampler]

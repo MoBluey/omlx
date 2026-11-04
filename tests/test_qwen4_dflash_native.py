@@ -70,14 +70,14 @@ def test_native_dflash_capture_matches_completed_hc_stream_oracle(monkeypatch, d
         assert mx.array_equal(actual, expected).item()
 
 
-@pytest.mark.parametrize("accepted", [0, 1, 2, 3])
-def test_native_dflash_verify_and_every_rollback_prefix_match_serial(monkeypatch, accepted):
+@pytest.mark.parametrize("block,accepted", [(block, accepted) for block in (2, 3, 4) for accepted in range(block)])
+def test_native_dflash_verify_and_every_rollback_prefix_match_serial(monkeypatch, block, accepted):
     model = _target(monkeypatch)
     verify_cache, serial_cache = model.make_cache(), model.make_cache()
     prefix = mx.array([[2, 3, 4]], dtype=mx.int32)
     model(prefix, cache=verify_cache)
     model(prefix, cache=serial_cache)
-    tokens = mx.array([[5, 6, 7, 8]], dtype=mx.int32)
+    tokens = mx.array([[5, 6, 7, 8][:block]], dtype=mx.int32)
     logits, _, transaction, captures = bg._call_backbone_captured(
         model, tokens, verify_cache, n_confirmed=1, capture_layer_ids=[0, 1]
     )
@@ -88,21 +88,26 @@ def test_native_dflash_verify_and_every_rollback_prefix_match_serial(monkeypatch
     mx.eval(logits, serial_logits, captures)
     assert transaction is not None and transaction.active
     assert len(captures) == 2
-    assert all(value.shape == (1, 4, model.args.hidden_size) for value in captures)
-    assert mx.array_equal(mx.argmax(logits[:, :accepted + 1], axis=-1), mx.argmax(serial_logits, axis=-1)).item()
-    model.rollback_speculative_cache(verify_cache, transaction, accepted, 4)
+    assert all(value.shape == (1, block, model.args.hidden_size) for value in captures)
+    assert mx.array_equal(logits[:, :accepted + 1], serial_logits).item()
+    model.rollback_speculative_cache(verify_cache, transaction, accepted, block)
     assert not transaction.active
     assert verify_cache[1].offset == serial_cache[1].offset == 4 + accepted
     assert getattr(verify_cache[0], "_qwen4_exp_ple_speculative_state", None) is None
-    for actual, expected in zip(verify_cache[0].state, serial_cache[0].state):
-        if actual is None or expected is None:
-            assert actual is expected
-        else:
-            mx.eval(actual, expected)
-            assert mx.allclose(actual, expected, rtol=1e-3, atol=1e-3).item()
+    for actual_cache, expected_cache in zip(verify_cache, serial_cache):
+        actual_state, expected_state = actual_cache.state, expected_cache.state
+        assert len(actual_state) == len(expected_state)
+        for actual, expected in zip(actual_state, expected_state):
+            if actual is None or expected is None:
+                assert actual is expected
+            else:
+                mx.eval(actual, expected)
+                assert mx.array_equal(actual, expected).item()
+    # QSA's index state is separate from its ordinary K/V cache state.
+    for name in ("index_keys", "index_position_ids"):
+        assert mx.array_equal(getattr(verify_cache[1], name), getattr(serial_cache[1], name)).item()
     next_token = mx.array([[9]], dtype=mx.int32)
     actual = model(next_token, cache=verify_cache).logits
     expected = model(next_token, cache=serial_cache).logits
     mx.eval(actual, expected)
-    assert mx.array_equal(mx.argmax(actual, axis=-1), mx.argmax(expected, axis=-1)).item()
-    assert mx.allclose(actual, expected, rtol=1e-3, atol=1e-3).item()
+    assert mx.array_equal(actual, expected).item()
