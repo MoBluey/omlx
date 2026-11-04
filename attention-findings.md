@@ -32,3 +32,42 @@ bit comparisons against MLX for QSA/all/sparse/empty-selected masks, independent
 cache and mask strides, explicit off/build-failure controls, and two-row
 verification followed by accepted-prefix trim and continuation. GPU execution
 is pending the exclusive slot. Only static/AST checks have run so far.
+
+## Prep-fusion
+
+Source reference: saved upstream `7ffa94f.patch`, using the existing exact
+`attn_fused.prep_qk` kernel without changing its arithmetic. Independent
+`prep_ready` validates only preparation on a tiny input, with its own ready
+set and failure state. The normal q/k/v preparation and gathered-QSA paths
+share this preparation seam. With the flag off they keep the composed MLX
+norm/rotary operations; enabling it only replaces q/k norms and MRoPE.
+
+The opt-in path requires batch one, positive length, integer cache offset,
+head dimension 256, canonical rank-two/rank-three position shape, supported
+floating dtype, matching ordinary q/k RMS norms and half-split rotary layout.
+External position embeddings, other batches/layouts and failed readiness keep
+the base preparation. Values, masks, cache append order and attention remain
+unchanged. The gate projection still follows its original sigmoid path.
+
+The original `ready`, `rows_available`, `row_plan`, `_fused_rows`,
+`_fused_projections_ready` and `_fused_prologue` functions are AST-identical
+to installed source. `omlx/models/vlm.py`, including the text-position policy,
+is byte-identical. These static assertions passed without importing MLX.
+The new independent preparation flag cannot enable complete s-class rows or
+alter which attention reduction plan runs.
+
+New numerical coverage is ready for BF16/FP32 raw q/k preparation at rows
+1/2/16/300, both position ranks, ordinary RoPE and YaRN; ordinary/gathered
+prefill, two-row verification, accepted-prefix rollback and continuation;
+explicit off, batch-two, external-position-embedding and readiness-failure
+controls. Every active case asserts actual preparation count increments and
+no fallback. These GPU checks have not yet run. CPU AST and diff checks pass.
+
+## Pending verification
+
+Run both focused files with the pinned Python `-BIS` bootstrap, setting
+`sys.dont_write_bytecode=True` before source/r2 paths, appending supplied pure
+pytest paths, `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, and `-p no:cacheprovider`.
+Main grants the only GPU slot before execution, then runs full-model ABBA and
+quality qualification only for useful, exact candidates. No performance or
+readiness claim is made from static checks alone.
