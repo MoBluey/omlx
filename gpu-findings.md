@@ -1,104 +1,130 @@
 # Remaining Qwen GPU operations, 4 November 2026
 
-Status: CPU discovery and bounded capture hook ready. GPU measurements pending.
-No performance change has been accepted or installed.
+Status: current Qwen short/28K capture and fused-gather numerical checks
+completed. Down2 tiling is rejected. One default-off fused K/V gather candidate
+is ready for main's same-resident ABBA. No change is accepted or installed.
 
-## Scope and evidence
+## Scope and provenance
 
 Exact source baseline `0713dc8ea7d8e4a5b269a10cdbea4706a0e68240`, MLX
-0.32.4 and mlx-lm 0.32.3.dev8+g0d4d3d04f. Worktree status was clean and
-both log directions against that intended base were empty before edits.
-Main fetched both remotes before creating the intentionally pinned worktree.
-The source is deliberately older than fork main because it matches installed r2.
+0.32.4 and mlx-lm 0.32.3.dev8+g0d4d3d04f. The worktree was clean and both
+log directions against the intended base were empty before edits. Main fetched
+the remotes before creating the deliberately pinned installed-r2 worktree.
 
-The 3 November Qwen Instruments capture only covered 8.67 seconds of a cold
-prefill and exceeded the private swap-write guard. It cannot identify current
-decode bottlenecks. Ornith's GPU gaps and Qwen's inclusive forward timers are
-not substituted for Qwen kernel evidence.
+The old partial, swapping Qwen Instruments trace cannot establish current
+decode bottlenecks. Ornith timings and inclusive forward wall time are not
+substitutes. Current source already uses fused routed/shared experts,
+row-exact verification, grouped projections and per-module HC optimisation.
+The once-only HC incompatibility warning identifies an unsupported instance;
+it does not establish whole-model fused-HC inactivity. No existing compiler,
+precision, fusion, model weights or recurrent/cache semantics are changed.
 
-CPU source inspection found these operations already active:
+## Actual-input capture
 
-* `omlx/patches/qwen35_moe_routed_decode.py`: fused router, expert gate/up
-  with activation, and down/combine. Row-exact verification uses window
-  variants of the same kernels, not the composed ~15-launch MoE path.
-* `omlx/patches/mlx_vlm_qwen4_exp_compat/vendor/mlx_vlm/models/qwen4_exp/`:
-  `language.py` compiles hyper-connections and uses existing fused HC,
-  grouped attention projections, q/k preparation and attention kernels.
-* `qsa_fast.py`: sparse QSA gathers chronological selected K/V rows; row-exact
-  verify in `language.py::_row_exact_gathered_verify` invokes each serial
-  row's gathered-QSA computation separately, preserving exact arithmetic.
+`gpu-capture-c/probe.json` contains completed short and 28K captures after
+warming the private full model. Main reported zero new swap writes. Earlier
+capture-a failed an already-applied-registration assertion; corrected in
+`5acd21ad`. Capture-b exceeded the private load-time swap guard before arming.
+Those failed loads are not candidate performance evidence.
 
-No proposal disables existing compiler/fusion support or changes precision,
-reduction order, weights, cache updates, rollback or recurrent state.
+`scripts/qwen_remaining_gpu_probe.py::install()` stays inert until the absolute
+`QWEN_GPU_PROBE_ARM` file exists. Its text labels the capture;
+`QWEN_GPU_PROBE_OUTPUT` names the private JSON. Pure operators receive their
+actual live inputs/weights, materialise dependencies, warm and replay eight
+times. At most four samples per operator/row width/label are taken. No tensors
+are retained or exported, no full KV copies are made, and no mutable model or
+cache method is replayed. Reference plus replay final outputs are capped at
+64 MiB, excluding normal operator intermediates and MLX allocator caching.
 
-## Bounded actual-input capture
+The 64 sampled baseline operations and all repeated outputs matched exact
+uint8 views. Table values are medians of four per-sample medians, microseconds:
 
-New `scripts/qwen_remaining_gpu_probe.py` exports `install()`. Main owns the
-private harness call after the normal compatibility patches are applied.
-The probe is inactive unless `QWEN_GPU_PROBE_ARM` names an existing file.
-Its contents label a capture, for example `short` or `long`.
-`QWEN_GPU_PROBE_OUTPUT` names the private derived JSON output.
+| Pure operation | Rows | Short | 28K |
+| --- | ---: | ---: | ---: |
+| Fused expert gate/up/top-k | 1 | 153.646 | 182.615 |
+| Fused expert down/combine | 1 | 120.448 | 152.062 |
+| Fused expert gate/up/top-k | 2 | 224.479 | 240.989 |
+| Fused expert down/combine | 2 | 164.386 | 183.333 |
+| QSA indexer head scores | 1 | 139.146 | 154.000 |
+| QSA block/token selection | 1 | 118.364 | 161.021 |
+| One K or V gather | 1 | 141.885 | 154.062 |
+| Gathered QSA SDPA | 1 | 154.844 | 163.906 |
 
-The hook intercepts pure operator functions, materialises their already-live
-input dependencies, evaluates their normal result, then warms and replays the
-same pure operation eight times. It records shapes, dtypes and synchronised
-latency. Each output is compared through an exact uint8 bit view. It keeps
-at most four samples for each operator, row width and capture label. It never
-serialises or retains tensors after the call, copies full KV caches, invokes
-mutable attention/PLE methods, or changes any cache state.
+These synchronised micro-operation latencies include dispatch/evaluation cost.
+They are not shader-only timings, a model-time decomposition, measured memory
+bandwidth or predicted end-to-end gains. They must not be summed into shares.
+Both captures are already past the 2048-token selection budget, so both use
+sparse QSA. The dense attention hook was not exercised. Sparse two-row verify
+executes each row's singleton QSA in serial order, preserving exact reduction.
 
-Reference plus replay final outputs are capped at 64 MiB. Normal kernel
-intermediates still allocate; this cap is not a bound on MLX's allocator cache.
-Only one evaluated replay is live at a time. The sampled actual pure operators
-are MoE gate/up, down/combine, dense SDPA/gate, sparse SDPA, KV gathers,
-indexer scores and block selection. Sparse verify legitimately records
-one-row operations while processing its two-row window.
+## Two bounded designs
 
-These are micro-operation latency observations under forced synchronisation,
-not a model-time decomposition, native GPU shader durations, achieved bandwidth
-or end-to-end speedups. Profiling runs must not enter throughput comparisons.
-Short and 28K captures are required because sparse QSA only activates past
-the configured selection budget.
+1. Down/combine two-row tiling changed output rows per SIMDgroup from four to
+   two only in pure replay. All eight candidate layer/input samples and all
+   restored-baseline samples matched bits. Median-of-medians latency worsened
+   from 164.386 to 174.469 us short and 183.333 to 191.073 us at 28K. This
+   candidate is rejected; it does not proceed to full-model ABBA. RPS is an
+   explicit per-invocation template argument and no cached plan was mutated.
+2. Fused K/V gather targets the observed two independent copies. Actual shapes
+   were BF16 `[1,2,2443/2444/28287/28288,256]` with selected widths 2048/2051.
+   `qsa_fast.py::_gather_decode_kv_pair` uses one two-output copy launch, keeps
+   chronological/duplicate/negative valid index semantics, and reads independent
+   K/V and index strides. `ensure_row_contiguous=False` avoids full cache copies.
+   Only batch-one BF16, two K/V heads and dimension 256 engage. Empty inputs,
+   foreign shapes/dtypes/devices and build/initial-launch failures preserve
+   the old independent gathers. No arithmetic, attention or cache update changes.
 
-## At most two designs
+The candidate's scalar request-boundary toggle is
+`mlx_vlm.models.qwen4_exp.qsa_fast._FUSED_DECODE_KV_GATHER`, default `False`.
+The flag only changes the singleton gathered-QSA copy consumer, including each
+serial row of row-exact verification. Main should assert candidate engagement
+through `_FUSED_DECODE_KV_GATHER_PROVEN` and that
+`_FUSED_DECODE_KV_GATHER_DISABLED` remains false. First engagement evaluates
+outputs eagerly to surface a build/launch failure safely; warm both ABBA arms.
 
-1. Expert down/combine grid tiling: on actual two-row verification inputs,
-   compare existing four output rows per SIMDgroup with two. The existing
-   `_down_rows` contract states each output row retains the same arithmetic
-   under regrouping. The probe temporarily changes `_DOWN_ROWS` only for a
-   pure replay and restores it in `finally`. Candidate compilation/warm-up
-   is excluded from reported timings. Actual output bits must match before
-   any opt-in full-model ABBA run is considered.
-2. If measured sparse K/V gather cost is material, combine their two pure
-   copies into one launch with two outputs. Preserve selected indices, token
-   order, cache strides, BF16 values and the existing SDPA consumer. This
-   remains a conditional hypothesis, not an implementation or claimed gain.
+The initial fused-copy grid did 64-bit division per element and was slower.
+A single correction maps dimension/token/head directly onto the three grid
+axes, removing that unnecessary integer work. This is the same gather design;
+no additional algorithm, precision change or parameter sweep was introduced.
 
-Only the first design is present as an isolated numerical/microtiming probe.
-The second will be stopped without implementation if live evidence does not
-support it. No wide parameter sweep or unrelated kernel is in scope.
+## Numerical/state checks and microcheck
 
-## Verification so far
+24 focused checks passed on the final grid kernel in 6.03 seconds:
 
-Standard-library AST parsing passed under pinned Python with `-BIS`.
-The first capture startup exposed an incorrect assertion: compatibility
-registration returns false when already applied. The corrected hook accepts
-that case and is itself idempotent. Actual isolated `-BIS` preflight applied
-compatibility twice, installed the probe twice without double wrapping, and
-ran an eight-replay BF16 gather with exact output bits. Derived evidence:
-`gpu-probe-preflight.json` in the current trial directory.
+* 16 actual-width/tail cases span short and long contexts, 0..3 tails,
+  reserved capacity, different K/V head/token/dimension strides and non-unit
+  index strides. Raw BF16 encodings include NaN payloads, signed zero and
+  infinities. Every output matches raw uint8 bits and asserts fused engagement.
+* Toggle-on/off/restored output matches, including negative valid indices,
+  duplicates and nonchronological order.
+* Five empty/unsupported cases use the old path, and a deliberate build
+  failure verifies fallback and candidate disablement.
+* Actual-geometry quantised attention runs two-row verification, trims a
+  rejected row and continues decode. Outputs and full visible K/V/indexer
+  state remain bit-exact between off/on; the candidate is proven engaged.
 
-No full-model capture has completed yet. Main owns the GPU slot and full-model
-controls. Remaining acceptance requires actual capture, bit-exact candidate
-evidence and, for a supported candidate, same-resident warmed short/28K ABBA
-with 700 output tokens. A winner would additionally need the existing
-production quality and independent review gates.
+Commands use pinned Python `-BIS`, set `sys.dont_write_bytecode=True` before
+adding this source and sealed-r2 dependencies, append the supplied pure pytest
+paths, set `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`, then invoke
+`pytest.main(['-q','-p','no:cacheprovider', '<worktree>/tests/test_qwen4_decode_kv_pair.py'])`.
+Evidence: `gpu-pair-numeric-grid.log`. Earlier initial-grid checks are preserved
+in `gpu-pair-numeric.log`.
 
-The tile candidate does not mutate a cached plan. `_window_down` constructs
-its Metal template on each call, including explicit `RPS` and `M` entries;
-the cached kernel factory only captures weight format and shader source.
-After restoring `_DOWN_ROWS`, a further baseline replay checks output bits.
-Direct imports of the gathered-QSA entry function do not bypass the probes:
-its internal `_gather_kv_rows`/`_decode_qsa_sdpa`/indexer references resolve
-against the wrapped `qsa_fast` module globals. Dense attention uses the
-`attn_fused` module directly.
+The final bounded same-input pair microcheck uses synthetic raw BF16 bits and
+exact captured shapes, reserved-capacity views and two ABBA blocks. Every arm
+is warmed; each block has 16 evaluated pair operations per arm occurrence.
+All four shapes assert fused engagement, exact on/restored output and no
+fallback. Median latency, microseconds:
+
+| Keys / selected rows | Existing pair | Fused pair |
+| --- | ---: | ---: |
+| 2443 / 2051 | 168.771 | 146.000 |
+| 2444 / 2048 | 164.500 | 146.042 |
+| 28287 / 2051 | 149.917 | 132.562 |
+| 28288 / 2048 | 148.312 | 124.438 |
+
+Evidence: `gpu-pair-microcheck-grid.json`; the slower initial grid is retained
+as `gpu-pair-microcheck.json`. This motivates full-model measurement and does
+not establish an end-to-end gain. Main owns warmed short/28K 700-token ABBA,
+file edits, any winner's production quality checks and fresh review. No push,
+merge, installation or production configuration change is authorised here.

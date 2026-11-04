@@ -663,6 +663,85 @@ def masked_decode_sdpa(
 _TOKEN_MAJOR_MIN_QUERIES = 32
 _TOKEN_MAJOR_MAX_TOKENS = 131072
 
+# Private request-boundary trial switch. Production keeps the existing path.
+_FUSED_DECODE_KV_GATHER = False
+_FUSED_DECODE_KV_GATHER_DISABLED = False
+_FUSED_DECODE_KV_GATHER_PROVEN = False
+
+
+@functools.cache
+def _decode_kv_pair_kernel():
+    return mx.fast.metal_kernel(
+        name="omlx_qwen4_decode_gather_kv_pair",
+        input_names=["keys", "values", "indices"],
+        output_names=["selected_keys", "selected_values"],
+        # Cache views retain reserved-capacity strides. Making them contiguous
+        # here would copy the whole cache merely to select ~2K token rows.
+        ensure_row_contiguous=False,
+        source=r"""
+            // One threadgroup per selected token/head, with a contiguous
+            // dimension walk. Avoid integer division in every copied element.
+            const size_t d = thread_position_in_grid.x;
+            const size_t row = thread_position_in_grid.y;
+            const size_t head = thread_position_in_grid.z;
+            const size_t elem = (head * indices_shape[1] + row) * 256 + d;
+            int token = indices[row * indices_strides[1]];
+            // Match take's negative-index semantics for valid [-N, N) ids.
+            if (token < 0) token += keys_shape[2];
+            const size_t key_offset = head * keys_strides[1]
+                + size_t(token) * keys_strides[2] + d * keys_strides[3];
+            const size_t value_offset = head * values_strides[1]
+                + size_t(token) * values_strides[2] + d * values_strides[3];
+            selected_keys[elem] = keys[key_offset];
+            selected_values[elem] = values[value_offset];
+        """,
+    )
+
+
+def _gather_decode_kv_pair(keys, values, indices):
+    """Copy the decode arm's two selected caches in one opt-in launch.
+
+    Only the measured batch-one BF16 geometry engages. Index ids are the
+    chronological, in-bounds selection produced by the caller; no selection,
+    attention, cache update or reduction changes. Empty/foreign shapes and
+    unavailable kernels preserve the existing independent gathers.
+    """
+    global _FUSED_DECODE_KV_GATHER_DISABLED, _FUSED_DECODE_KV_GATHER_PROVEN
+    if (
+        _FUSED_DECODE_KV_GATHER
+        and not _FUSED_DECODE_KV_GATHER_DISABLED
+        and keys.ndim == 4
+        and keys.shape[0:2] == (1, 2)
+        and keys.shape[2] > 0
+        and keys.shape[3] == 256
+        and values.shape == keys.shape
+        and keys.dtype == values.dtype == mx.bfloat16
+        and indices.ndim == 2
+        and indices.shape[0] == 1
+        and 0 < indices.shape[1] <= 4096
+        and indices.dtype == mx.int32
+        and mx.default_device() == mx.gpu
+        and mx.metal.is_available()
+    ):
+        try:
+            shape = (1, 2, indices.shape[1], 256)
+            result = _decode_kv_pair_kernel()(
+                inputs=[keys, values, indices],
+                grid=(256, indices.shape[1], 2),
+                threadgroup=(256, 1, 1),
+                output_shapes=[shape, shape],
+                output_dtypes=[keys.dtype, values.dtype],
+            )
+            if not _FUSED_DECODE_KV_GATHER_PROVEN:
+                # Surface build/launch failure before exposing the lazy result.
+                # This pure copy has no state to roll back on fallback.
+                mx.eval(*result)
+                _FUSED_DECODE_KV_GATHER_PROVEN = True
+            return tuple(result)
+        except Exception:
+            _FUSED_DECODE_KV_GATHER_DISABLED = True
+    return _gather_kv_rows(keys, indices), _gather_kv_rows(values, indices)
+
 
 def _gather_kv_rows(kv: mx.array, indices: mx.array) -> mx.array:
     """Gather token rows of the stored ``(B, H, N, D)`` cache: ``(B, S)`` -> ``(B, H, S, D)``,
@@ -1151,8 +1230,7 @@ def contiguous_causal_gathered_qsa_decode(
             tail = mx.arange(complete_key_len, key_tokens, dtype=mx.int32)[None]
             selected_tokens = mx.concatenate((selected_tokens, tail), axis=-1)
 
-    selected_keys = _gather_kv_rows(keys, selected_tokens)
-    selected_values = _gather_kv_rows(values, selected_tokens)
+    selected_keys, selected_values = _gather_decode_kv_pair(keys, values, selected_tokens)
     output = _decode_qsa_sdpa(
         queries,
         selected_keys,
