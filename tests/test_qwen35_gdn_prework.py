@@ -1435,7 +1435,7 @@ _PARAVIRTUAL_GPU = mx.metal.is_available() and not str(
 
 @pytest.mark.skipif(not mx.metal.is_available(), reason="requires Metal")
 @pytest.mark.skipif(_PARAVIRTUAL_GPU, reason="per-op reference is not row-exact here")
-@pytest.mark.parametrize("signatures", [((6, 64),) * 4, ((8, 64),) * 4])
+@pytest.mark.parametrize("signatures", [((6, 64),) * 4, ((8, 64),) * 4, ((4, 64),) * 4])
 @pytest.mark.parametrize("rows", [1, 2, 3, 4, 5, 6, 7, 8, 9])
 @pytest.mark.parametrize("seed", [3, 11])
 @pytest.mark.parametrize("deferred", [True, False])
@@ -1675,3 +1675,26 @@ def test_qwen4_fused_verify_multi_row_blocks_need_row_exact_arming(qwen4_verify)
         )
         transaction.abort()
     assert qwen4_verify == [1]
+
+
+@pytest.mark.parametrize("device", ["Apple M4 Max", "Apple M4 Pro", "Apple M5 Ultra"])
+@pytest.mark.parametrize("dtype", [mx.bfloat16, mx.float16, mx.float32, None])
+def test_qwen4_verify_two_row_tiles_are_allocation_and_hardware_specific(monkeypatch, device, dtype):
+    monkeypatch.setattr(prework_mod.mx, "device_info", lambda: {"device_name": device})
+    prework_mod._qwen4_verify_m4_max.cache_clear()
+    try:
+        m4_max = device == "Apple M4 Max" and dtype is not None and dtype == mx.bfloat16
+        assert prework_mod._qwen4_verify_in_tile(2, bits=4, group_size=64, dtype=dtype) == (
+            (2, 2) if m4_max else (1, 2)
+        )
+        assert prework_mod._qwen4_verify_out_tile(2, bits=5, group_size=128, dtype=dtype) == (
+            (4, 2) if m4_max else (4, 1)
+        )
+        for bits, group in ((6, 64), (8, 64), (4, 128)):
+            assert prework_mod._qwen4_verify_in_tile(2, bits=bits, group_size=group, dtype=dtype) == (1, 2)
+        assert prework_mod._qwen4_verify_out_tile(2, bits=5, group_size=64, dtype=dtype) == (4, 1)
+        for rows in (1, 3, 4, 8, 9, 16):
+            assert prework_mod._qwen4_verify_in_tile(rows, bits=4, group_size=64, dtype=dtype) == prework_mod._qwen4_verify_in_tile(rows)
+            assert prework_mod._qwen4_verify_out_tile(rows, bits=5, group_size=128, dtype=dtype) == prework_mod._qwen4_verify_out_tile(rows)
+    finally:
+        prework_mod._qwen4_verify_m4_max.cache_clear()
