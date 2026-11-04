@@ -3571,6 +3571,7 @@ class DiskBackedShardedEmbedding(nn.Module):
         self.rows_read = 0
         self.last_uploads = 0
         self.last_prefetch_hit = False
+        self._reuse_indices = None
         self._pending: dict[bytes, tuple] = {}
         self._prefetch_lock = Lock()
         self._prefetch_closed = False
@@ -3760,6 +3761,35 @@ class DiskBackedShardedEmbedding(nn.Module):
     def prefetch(self, indices: mx.array) -> None:
         """Assemble a chunk's rows on the prefetch worker; a later call with the same indices consumes them."""
         host = self._host_indices(indices)
+        self._prefetch_host(host)
+
+    def prefetch_reuse(self, indices: mx.array) -> None:
+        """Prepare one exact index object for one consumer without reevaluating it."""
+        self.clear_index_reuse()
+        host = self._host_indices(indices)
+        self._prefetch_host(host)
+        with self._prefetch_lock:
+            if not self._prefetch_closed:
+                self._reuse_indices = (indices, host)
+
+    def clear_index_reuse(self, *, drain=False) -> None:
+        self._require_owner()
+        with self._prefetch_lock:
+            prepared = self._reuse_indices
+            self._reuse_indices = None
+            if prepared is not None:
+                pending = self._pending.pop(prepared[1].tobytes(), None)
+                if pending is not None:
+                    pending[1].cancel()
+            if drain:
+                for _, future in self._pending.values():
+                    future.cancel()
+                self._pending.clear()
+                if not self._prefetch_closed:
+                    # The single worker's barrier also drains displaced running reads.
+                    self._prefetch_executor.submit(lambda: None).result()
+
+    def _prefetch_host(self, host) -> None:
         if host.size == 0:
             return
         with self._prefetch_lock:
@@ -3789,7 +3819,16 @@ class DiskBackedShardedEmbedding(nn.Module):
 
     def _call_owned(self, indices):
         shape = indices.shape
-        host = self._host_indices(indices)
+        prepared = self._reuse_indices
+        self._reuse_indices = None
+        if prepared is not None and prepared[0] is indices:
+            host = prepared[1]
+        else:
+            if prepared is not None:
+                stale = self._pending.pop(prepared[1].tobytes(), None)
+                if stale is not None:
+                    stale[1].cancel()
+            host = self._host_indices(indices)
         if host.size == 0:
             return mx.zeros((*shape, self.dims), dtype=self.weight_scale.dtype)
         pending = self._pending.pop(host.tobytes(), None)
@@ -3870,6 +3909,7 @@ class DiskBackedShardedEmbedding(nn.Module):
             # lock. The module lock was replaced in the child at fork.
             with _PLE_RESOURCE_LOCK:
                 self._prefetch_closed = True
+                self._reuse_indices = None
                 self._pending.clear()
                 for reader in self._readers.values():
                     reader._close_resources()
@@ -3880,6 +3920,7 @@ class DiskBackedShardedEmbedding(nn.Module):
         with self._prefetch_lock:
             if not self._prefetch_closed:
                 self._prefetch_closed = True
+                self._reuse_indices = None
                 # Drain workers before closing their mmap views. Never hold the
                 # module resource lock while waiting for a worker or row read.
                 self._prefetch_executor.shutdown(wait=True, cancel_futures=True)
@@ -4301,6 +4342,7 @@ class Qwen4ExpNGramEmbedding(nn.Module):
         self.layer_idx = layer_idx
         self.ngram_size = config.ngram_size
         self.context_len = self.ngram_size - 1
+        self._prepared_ple = None
         self.heads_per_ngram = config.heads_per_ngram
         self.ngram_heads = self.context_len * self.heads_per_ngram
         self.ple_layer_index = ple_layer_index
@@ -4420,15 +4462,40 @@ class Qwen4ExpNGramEmbedding(nn.Module):
         history = mx.concatenate([previous_context.astype(mx.int64), next_ids], axis=-1)
         prefetch(self._ngram_indices(history, next_ids.shape[1]))
 
-    def __call__(self, input_ids: mx.array, cache: Optional[ArraysCache]):
-        input_ids = input_ids.astype(mx.int64)
-        previous_context = self._previous_context(input_ids, cache)
+    def clear_index_reuse(self, *, drain=False):
+        self._prepared_ple = None
+        if isinstance(self.ngram_embedding, DiskBackedShardedEmbedding):
+            self.ngram_embedding.clear_index_reuse(drain=drain)
 
-        token_history = mx.concatenate([previous_context, input_ids], axis=-1)
+    def prepare_index_reuse(self, input_ids, previous_context):
+        """Keep immutable input/history identities and the exact evaluated row graph."""
+        self.clear_index_reuse()
+        history = mx.concatenate(
+            [previous_context, input_ids.astype(mx.int64)], axis=-1
+        )
+        indices = self._ngram_indices(history, input_ids.shape[1])
+        self.ngram_embedding.prefetch_reuse(indices)
+        self._prepared_ple = (input_ids, previous_context, history, indices)
+
+    def __call__(self, input_ids: mx.array, cache: Optional[ArraysCache]):
+        previous_context = self._previous_context(input_ids, cache)
+        prepared = self._prepared_ple
+        self._prepared_ple = None
+        if (
+            prepared is not None
+            and prepared[0] is input_ids
+            and prepared[1] is previous_context
+        ):
+            token_history, ngram_ids = prepared[2:]
+        else:
+            if prepared is not None:
+                self.clear_index_reuse()
+            input_ids = input_ids.astype(mx.int64)
+            token_history = mx.concatenate([previous_context, input_ids], axis=-1)
+            ngram_ids = self._ngram_indices(token_history, input_ids.shape[1])
         if cache is not None:
             cache.update_window(3, token_history, self.context_len)
 
-        ngram_ids = self._ngram_indices(token_history, input_ids.shape[1])
         if type(self.ngram_embedding) is ShardedEmbedding:
             embeddings = self.ngram_embedding(ngram_ids, self._head_row_ranges)
         else:
@@ -4717,10 +4784,32 @@ class Qwen4ExpDecoderLayer(nn.Module):
         return _hc_write(hyper_input, branch, injection_weights)
 
 
+def _ple_clear_index_reuse(layers, *, drain=False):
+    for layer in layers:
+        ple = getattr(layer, "ple", None)
+        if ple is not None:
+            ple.ple_embedding.clear_index_reuse(drain=drain)
+
+
+def _ple_prepare_decode(layers, input_ids, cache):
+    """Use each layer's committed history; ordinary forward alone advances it."""
+    if cache is None or not 0 < input_ids.shape[1] <= 64:
+        return
+    _ple_require_owner()
+    for layer, layer_cache in zip(layers, cache):
+        ple = getattr(layer, "ple", None)
+        if ple is None or layer_cache is None or layer_cache[3] is None:
+            continue
+        embedding = ple.ple_embedding
+        if isinstance(embedding.ngram_embedding, DiskBackedShardedEmbedding):
+            embedding.prepare_index_reuse(input_ids, layer_cache[3])
+
+
 class Qwen4ExpModel(nn.Module):
     def __init__(self, config: TextConfig):
         super().__init__()
         self.args = config
+        self._ple_index_reuse = os.environ.get("OMLX_QWEN4_PLE_INDEX_REUSE") == "1"
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size)
         self.layers = [
             Qwen4ExpDecoderLayer(config, layer_idx)
@@ -4747,6 +4836,8 @@ class Qwen4ExpModel(nn.Module):
         **kwargs,
     ):
         del kwargs
+        if self._ple_index_reuse:
+            _ple_prepare_decode(self.layers, inputs, cache)
         if cache is not None and any(
             getattr(c, "_speculation", None) is not None for c in cache
         ):
@@ -4982,11 +5073,25 @@ class LanguageModel(Qwen3_5LanguageModel):
         self.config = config
         self.model_type = args.model_type
         self.model = Qwen4ExpModel(args)
+        self._ple_index_reuse_active = False
         self.model._omlx_mtp_prime_host = weakref.ref(self)
         self._position_ids = None
         self._rope_deltas = None
         if not args.tie_word_embeddings:
             self.lm_head = nn.Linear(args.hidden_size, args.vocab_size, bias=False)
+
+    def set_ple_index_reuse(self, enabled: bool) -> None:
+        """Switch experimental reuse between requests after evaluating prior outputs.
+
+        The caller must serialise requests, as for the existing model/cache API.
+        Both transitions drain rows and drop all one-use tickets, including when
+        setting the same arm again. No warmed PLE buffers survive an arm boundary.
+        """
+        _ple_require_owner()
+        if self._ple_index_reuse_active:
+            raise RuntimeError("cannot toggle PLE index reuse during a forward")
+        _ple_clear_index_reuse(self.model.layers, drain=True)
+        self.model._ple_index_reuse = bool(enabled)
 
     def bind_mtp_owner(self, owner) -> None:
         """Reference a root-level Lightning MTP head without double registration."""
@@ -5030,6 +5135,7 @@ class LanguageModel(Qwen3_5LanguageModel):
             else None
         )
         step = _MTP_ONE_ROW_STEP.set(True) if one_row_step else None
+        self._ple_index_reuse_active = True
         try:
             output = super().__call__(inputs, inputs_embeds, mask, cache, **kwargs)
             if mtp_capture and output.hidden_states:
@@ -5041,8 +5147,13 @@ class LanguageModel(Qwen3_5LanguageModel):
                 transaction.abort()
             raise
         finally:
-            if step is not None:
-                _MTP_ONE_ROW_STEP.reset(step)
+            try:
+                if self.model._ple_index_reuse:
+                    _ple_clear_index_reuse(self.model.layers)
+            finally:
+                self._ple_index_reuse_active = False
+                if step is not None:
+                    _MTP_ONE_ROW_STEP.reset(step)
 
     def ple_gathers_ahead(self) -> bool:
         """True when an SSD-backed PLE table gathers rows one prefill chunk ahead."""

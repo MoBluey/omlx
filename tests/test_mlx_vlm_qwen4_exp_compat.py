@@ -2147,6 +2147,171 @@ def test_ngram_prefetch_computes_the_next_chunks_indices():
 
 
 
+@pytest.mark.parametrize("accepted", [0, 2, 3])
+@pytest.mark.parametrize("bits", [None, 4])
+def test_ple_index_reuse_exact_ssd_logits_after_mtp_rollback(
+    tmp_path, monkeypatch, accepted, bits
+):
+    """Reuse the exact evaluated index graph once; preserve EOS/accepted history."""
+    import threading
+
+    config = _tiny_config()
+    config.text_config.num_hidden_layers = 3
+    config.text_config.layer_types = ["linear_attention", "linear_attention", "full_attention"]
+    config.text_config.ple_layer_ids = [2]
+    config.text_config.ple_embed_dim = 128
+    model = qwen4_language.LanguageModel(config.text_config, config)
+    table, _ = _disk_ple(tmp_path, shards=4, rows=128, dims=32, bits=bits)
+    embedding = model.model.layers[1].ple.ple_embedding
+    embedding.ngram_embedding = table
+    baseline_cache, trial_cache = model.make_cache(), model.make_cache()
+    host_calls, hash_calls, worker_threads = [], [], []
+    host_indices, hash_indices, assemble = table._host_indices, embedding._ngram_indices, table._assemble
+
+    def observe_host(indices):
+        host_calls.append(indices)
+        return host_indices(indices)
+
+    def observe_hash(*args):
+        indices = hash_indices(*args)
+        hash_calls.append(indices)
+        return indices
+
+    def observe_assemble(*args):
+        worker_threads.append(threading.current_thread().name)
+        return assemble(*args)
+
+    monkeypatch.setattr(table, "_host_indices", observe_host)
+    monkeypatch.setattr(embedding, "_ngram_indices", observe_hash)
+    monkeypatch.setattr(table, "_assemble", observe_assemble)
+    def assert_cache_state():
+        def equal(left, right):
+            if isinstance(left, mx.array):
+                assert left.dtype == right.dtype
+                assert mx.array_equal(left, right).item()
+            else:
+                assert left == right
+        for left, right in zip(baseline_cache, trial_cache):
+            tree_map(equal, left.state, right.state)
+
+    prefix = mx.array([[2, 3, 1, 4]], dtype=mx.int32)
+    verify = mx.array([[5, 1, 7, 8]], dtype=mx.int32)
+    try:
+        model.set_ple_index_reuse(False)
+        mx.eval(model(prefix, cache=baseline_cache).logits)
+        mx.eval(model(prefix, cache=trial_cache).logits)
+        baseline = model(verify, cache=baseline_cache, return_hidden=True)
+        mx.eval(baseline.logits)
+        assert table.last_prefetch_hit is False
+        host_calls.clear()
+        hash_calls.clear()
+        worker_threads.clear()
+
+        model.set_ple_index_reuse(True)
+        trial = model(verify, cache=trial_cache, return_hidden=True)
+        mx.eval(trial.logits)
+        assert len(host_calls) == len(hash_calls) == 1
+        assert host_calls[0] is hash_calls[0]
+        assert table.last_prefetch_hit is True
+        assert worker_threads and all(name.startswith("ple-prefetch") for name in worker_threads)
+        assert embedding._prepared_ple is table._reuse_indices is None
+        assert not table._pending
+        assert mx.array_equal(trial.logits, baseline.logits).item()
+        assert_cache_state()
+
+        for cache, output in ((baseline_cache, baseline), (trial_cache, trial)):
+            model.rollback_speculative_cache(cache, output.gdn_states, accepted, 4)
+        assert mx.array_equal(trial_cache[1][3], baseline_cache[1][3]).item()
+        assert mx.array_equal(trial_cache[1][2], baseline_cache[1][2]).item()
+        assert_cache_state()
+
+        next_ids = mx.array([[9]], dtype=mx.int32)
+        model.set_ple_index_reuse(False)
+        expected = model(next_ids, cache=baseline_cache)
+        mx.eval(expected.logits)
+        model.set_ple_index_reuse(True)
+        host_calls.clear()
+        hash_calls.clear()
+        actual = model(next_ids, cache=trial_cache)
+        mx.eval(actual.logits)
+        assert len(host_calls) == len(hash_calls) == 1
+        assert host_calls[0] is hash_calls[0]
+        assert table.last_prefetch_hit is True
+        assert mx.array_equal(actual.logits, expected.logits).item()
+        assert mx.array_equal(trial_cache[1][3], baseline_cache[1][3]).item()
+        assert mx.array_equal(trial_cache[1][2], baseline_cache[1][2]).item()
+        assert_cache_state()
+    finally:
+        table.close()
+    assert not table._pending
+
+
+@pytest.mark.parametrize("mismatch", ["tokens", "equal_tokens", "history", "none"])
+def test_ple_index_reuse_stale_preparation_recovers_exactly(tmp_path, mismatch):
+    from mlx_vlm.models.cache import ArraysCache
+    from mlx_vlm.models.qwen4_exp.language import Qwen4ExpNGramEmbedding
+
+    config = _tiny_config().text_config
+    embedding = Qwen4ExpNGramEmbedding(config, 128, 0, 0)
+    table, _ = _disk_ple(tmp_path, shards=4, rows=128, dims=32, bits=4)
+    embedding.ngram_embedding = table
+    old_history = mx.array([[2, 3]], dtype=mx.int64)
+    prepared_ids = mx.array([[5, 1, 7]], dtype=mx.int32)
+    actual_ids = (
+        mx.array([[8, 1, 7]], dtype=mx.int32) if mismatch == "tokens"
+        else mx.array([[5, 1, 7]], dtype=mx.int32) if mismatch == "equal_tokens"
+        else prepared_ids
+    )
+    history = mx.array([[4, 9]], dtype=mx.int64) if mismatch == "history" else old_history
+    expected_cache, actual_cache = ArraysCache(4), ArraysCache(4)
+    expected_cache[3] = actual_cache[3] = history
+    try:
+        expected = embedding(actual_ids, expected_cache)
+        mx.eval(expected)
+        embedding.prepare_index_reuse(prepared_ids, old_history)
+        actual = embedding(actual_ids, actual_cache)
+        mx.eval(actual)
+        assert mx.array_equal(actual, expected).item()
+        assert mx.array_equal(actual_cache[3], expected_cache[3]).item()
+        assert table.last_prefetch_hit is (mismatch == "none")
+        assert embedding._prepared_ple is table._reuse_indices is None
+        assert not table._pending
+    finally:
+        table.close()
+
+
+def test_ple_index_reuse_toggle_and_failed_forward_drop_all_rows(tmp_path, monkeypatch):
+    config = _tiny_config()
+    model = qwen4_language.LanguageModel(config.text_config, config)
+    embedding = model.model.layers[0].ple.ple_embedding
+    table, _ = _disk_ple(tmp_path, shards=4, rows=128, dims=8, bits=None)
+    embedding.ngram_embedding = table
+    cache = model.make_cache()
+    cache[0][3] = mx.array([[2, 3]], dtype=mx.int64)
+    ids = mx.array([[5]], dtype=mx.int32)
+    try:
+        embedding.prepare_index_reuse(ids, cache[0][3])
+        for arm in (False, True, True, False):
+            model.set_ple_index_reuse(arm)
+            assert not table._pending
+            assert embedding._prepared_ple is table._reuse_indices is None
+            embedding.prepare_index_reuse(ids, cache[0][3])
+        model.set_ple_index_reuse(True)
+        def fail(*args, **kwargs):
+            with pytest.raises(RuntimeError, match="during a forward"):
+                model.set_ple_index_reuse(False)
+            raise OSError("injected forward failure")
+        monkeypatch.setattr(type(model.model.layers[0]), "__call__", fail)
+        with pytest.raises(OSError, match="injected forward failure"):
+            model(ids, cache=cache)
+        assert not model._ple_index_reuse_active
+        assert embedding._prepared_ple is table._reuse_indices is None
+        assert not table._pending
+        model.set_ple_index_reuse(False)
+    finally:
+        table.close()
+
+
 def test_ple_gathers_ahead_only_with_a_prefetching_table():
     from mlx_vlm.models.qwen4_exp.language import LanguageModel
 

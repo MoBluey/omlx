@@ -198,6 +198,7 @@ class RuntimePLEForkTests(unittest.TestCase):
         e._owner_pid = os.getpid()
         e._prefetch_lock = threading.Lock()
         e._prefetch_closed = False
+        e._reuse_indices = None
         e._pending = {b"pending": (None, Future())}
         e._prefetch_executor = ThreadPoolExecutor(max_workers=1)
         e._readers = {"rows": self.reader}
@@ -218,6 +219,11 @@ class RuntimePLEForkTests(unittest.TestCase):
                 future.result(timeout=0.03)
             for call in (
                 lambda: e.prefetch(object()),
+                lambda: e.prefetch_reuse(object()),
+                lambda: e.clear_index_reuse(drain=True),
+                lambda: NS["_ple_prepare_decode"](
+                    [object()], types.SimpleNamespace(shape=(1, 1)), [object()]
+                ),
                 lambda: e(object()),
                 lambda: self.reader.rows_np("weight", [0]),
                 lambda: NS["_SafeTensorMMap"](self.path),
@@ -252,6 +258,76 @@ class RuntimePLEForkTests(unittest.TestCase):
             self.reader.rows_np("weight", [2])[0], self.values[[2]]
         )
         e.close()
+
+    def test_exact_index_ticket_is_one_use_and_mismatch_evaluates_again(self):
+        e = self.embedding()
+        e._pending.clear()
+        e._plan = lambda host: None
+        e._gather_per_shard = lambda host, shape: (host, shape)
+        first = types.SimpleNamespace(shape=(1, 2))
+        equal_but_distinct = types.SimpleNamespace(shape=(1, 2))
+        host = np.array([2, 7], dtype=np.int64)
+        e._host_indices = MagicMock(return_value=host)
+        try:
+            e.prefetch_reuse(first)
+            self.assertIs(e._reuse_indices[0], first)
+            self.assertEqual(e(first), ([2, 7], (1, 2)))
+            self.assertEqual(e._host_indices.call_count, 1)
+            self.assertIsNone(e._reuse_indices)
+            e(first)
+            self.assertEqual(e._host_indices.call_count, 2)
+            e.prefetch_reuse(first)
+            e(equal_but_distinct)
+            self.assertEqual(e._host_indices.call_count, 4)
+            self.assertIsNone(e._reuse_indices)
+        finally:
+            e.close()
+
+    def test_boundary_clear_drains_running_and_cancels_queued_rows(self):
+        e = self.embedding()
+        e._pending.clear()
+        entered, release, cleared = (threading.Event() for _ in range(3))
+        host = np.array([2, 7], dtype=np.int64)
+        def read():
+            entered.set()
+            self.assertTrue(release.wait(2))
+            return {"weight": host.copy()}
+        running = e._prefetch_executor.submit(read)
+        self.assertTrue(entered.wait(1))
+        queued = e._prefetch_executor.submit(read)
+        e._pending = {b"running": (None, running), host.tobytes(): (None, queued)}
+        e._reuse_indices = (object(), host)
+        thread = threading.Thread(target=lambda: (e.clear_index_reuse(drain=True), cleared.set()))
+        thread.start()
+        try:
+            self.assertFalse(cleared.wait(0.03))
+            release.set()
+            thread.join(2)
+            self.assertTrue(cleared.is_set())
+            self.assertTrue(running.done())
+            self.assertTrue(queued.cancelled())
+            self.assertEqual(e._pending, {})
+            self.assertIsNone(e._reuse_indices)
+        finally:
+            release.set()
+            thread.join(2)
+            e.close()
+
+    def test_failed_reused_rows_do_not_leave_an_index_ticket(self):
+        e = self.embedding()
+        host = np.array([2, 7], dtype=np.int64)
+        indices = types.SimpleNamespace(shape=(1, 2))
+        failure = Future()
+        failure.set_exception(OSError("injected row failure"))
+        e._pending = {host.tobytes(): (None, failure)}
+        e._reuse_indices = (indices, host)
+        try:
+            with self.assertRaisesRegex(OSError, "injected row failure"):
+                e(indices)
+            self.assertIsNone(e._reuse_indices)
+            self.assertFalse(e._pending)
+        finally:
+            e.close()
 
     def test_initialized_global_pool_cannot_be_used_by_new_child_reader(self):
         self.assertEqual(NS["_PLE_IO_POOL"].submit(lambda: 7).result(timeout=1), 7)
@@ -405,6 +481,53 @@ class RuntimePLEForkTests(unittest.TestCase):
             if closer.ident is not None:
                 closer.join(2)
             os.pread = real_pread
+
+    def test_prepare_uses_each_layers_live_history_without_mutation(self):
+        calls = []
+        histories = [np.array([[2, 3]]), np.array([[7, 8]])]
+        caches = [[None, None, None, history] for history in histories]
+        tokens = np.array([[4, 5]])
+        tables = [self.embedding(), self.embedding()]
+        def layer(index):
+            embedding = types.SimpleNamespace(
+                ngram_embedding=tables[index],
+                prepare_index_reuse=lambda ids, history: calls.append((index, ids, history)),
+            )
+            return types.SimpleNamespace(ple=types.SimpleNamespace(ple_embedding=embedding))
+        layers = [layer(0), layer(1)]
+        try:
+            NS["_ple_prepare_decode"](layers, tokens, caches)
+            self.assertEqual([index for index, _, _ in calls], [0, 1])
+            for index, ids, history in calls:
+                self.assertIs(ids, tokens)
+                self.assertIs(history, histories[index])
+                self.assertIs(caches[index][3], histories[index])
+            restored = np.array([[3, 4]])
+            caches[0][3] = restored
+            NS["_ple_prepare_decode"](layers, tokens[:, :1], caches)
+            self.assertIs(calls[2][2], restored)
+        finally:
+            for table in tables:
+                table.close()
+
+    def test_prepare_skips_prefill_resident_and_missing_history(self):
+        def fail(*args):
+            self.fail("unexpected preparation")
+        table = self.embedding()
+        def layer(inner):
+            return types.SimpleNamespace(ple=types.SimpleNamespace(
+                ple_embedding=types.SimpleNamespace(ngram_embedding=inner, prepare_index_reuse=fail)
+            ))
+        prepare = NS["_ple_prepare_decode"]
+        try:
+            prepare([layer(table)], np.zeros((1, 1)), None)
+            prepare([layer(table)], np.zeros((1, 65)), [[None, None, None, object()]])
+            prepare([layer(table)], np.zeros((1, 1)), [[None] * 4])
+            prepare([layer(table)], np.zeros((1, 1)), [None])
+            prepare([layer(object())], np.zeros((1, 1)), [[None, None, None, object()]])
+            prepare([object()], np.zeros((1, 1)), [object()])
+        finally:
+            table.close()
 
     def test_constructor_failure_closes_file(self):
         bad = Path(self.temp.name) / "bad.safetensors"
