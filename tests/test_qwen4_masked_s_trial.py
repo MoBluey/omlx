@@ -83,13 +83,17 @@ def test_masked_s_initial_launch_failure_and_off(monkeypatch):
 
 
 @pytest.mark.parametrize("prep_enabled", [False, True])
-def test_masked_s_verify_rollback_and_continuation(monkeypatch, prep_enabled):
+@pytest.mark.parametrize("indexer_enabled", [False, True])
+def test_masked_s_verify_rollback_and_continuation(monkeypatch, prep_enabled, indexer_enabled):
     if qsa._gpu_class() != "s":
         pytest.skip("actual s-class Metal required")
     import test_qwen4_verify_attention_rows as fixture
 
     monkeypatch.setattr(qsa, "_DECODE_SDPA_DISABLED", False)
     fused = importlib.import_module("mlx_vlm.models.qwen4_exp.attn_fused")
+    language = importlib.import_module("mlx_vlm.models.qwen4_exp.language")
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", False)
+    monkeypatch.setattr(qsa, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", False)
     monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", False)
     monkeypatch.setattr(fused, "PREP_FUSION_DISABLED", False)
     attention = fixture._attention(seed=13)
@@ -101,7 +105,11 @@ def test_masked_s_verify_rollback_and_continuation(monkeypatch, prep_enabled):
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
     before = qsa.MASKED_S_CALLS
     prep_before = fused.PREP_FUSION_CALLS
+    bank_before = dict(language._QSA_FP32_BANK_STATS)
+    selection_before = dict(qsa._DECODE_SELECT_REDUCED_BARRIERS_STATS)
     monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", prep_enabled)
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", indexer_enabled)
+    monkeypatch.setattr(qsa, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", indexer_enabled)
     candidate = fixture._verify(attention, candidate_cache, x)
     assert qsa.MASKED_S_CALLS == before + 2
     assert mx.array_equal(baseline.view(mx.uint16), candidate.view(mx.uint16)).item()
@@ -112,10 +120,19 @@ def test_masked_s_verify_rollback_and_continuation(monkeypatch, prep_enabled):
     next_input = x[:, :1]
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", False)
     monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", False)
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", False)
+    monkeypatch.setattr(qsa, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", False)
     baseline = fixture._serial(attention, baseline_cache, next_input)
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
     monkeypatch.setattr(fused, "PREP_FUSION_ENABLED", prep_enabled)
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", indexer_enabled)
+    monkeypatch.setattr(qsa, "_DECODE_SELECT_REDUCED_BARRIERS_ENABLED", indexer_enabled)
     candidate = fixture._serial(attention, candidate_cache, next_input)
+    if indexer_enabled:
+        assert language._QSA_FP32_BANK_STATS["calls"] >= bank_before["calls"] + 2
+        assert language._QSA_FP32_BANK_STATS["blocks_cast"] > bank_before["blocks_cast"]
+        assert qsa._DECODE_SELECT_REDUCED_BARRIERS_STATS["mask"] >= selection_before["mask"] + 3
+        assert qsa._DECODE_SELECT_REDUCED_BARRIERS_STATS["failures"] == selection_before["failures"]
     assert fused.PREP_FUSION_CALLS == prep_before + (2 if prep_enabled else 0)
     assert not fused.PREP_FUSION_DISABLED
     assert qsa.MASKED_S_CALLS == before + 3
