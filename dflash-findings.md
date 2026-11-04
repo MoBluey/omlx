@@ -15,9 +15,9 @@ Median output tokens/second:
 | Fixed DFlash block3 | 43.275 | 42.040 | 67.270 |
 | Adaptive DFlash block3 | 51.555 | 32.910 | 53.545 |
 
-The runs used separate processes and encountered host variation. These are observed medians, not precise causal deltas. Main owns the fresh baseline-c control; this report does not depend on that unfinished run or claim its results.
+The runs used separate processes and encountered host variation. These are observed medians, not precise causal deltas. The final baseline-c control passed 90% admission and native readiness, then hit the private 1 GiB host-swap guard during cold model loading. The one-second poll observed 2,048.8125 MiB of new swap writes, and the run stopped before timings. There is therefore no completed final warmed control for a precise causal comparison.
 
-Adaptive block3's cold 28K request recorded 788,267,008 bytes (751.75 MiB) of new swap writes. Every other completed timing recorded zero new swap writes. This stayed below the private 1 GiB abort threshold but adds to the evidence against retaining adaptive block3.
+Adaptive block3's cold 28K request recorded 788,267,008 bytes (751.75 MiB) of new swap writes. Every other completed timing recorded zero new swap writes. Although this stayed below the private 1 GiB abort threshold, memory pressure confounds that 28K timing. The baseline-c guard failure also prevents attributing the memory pressure specifically to DFlash. Neither observation establishes a DFlash-specific memory regression.
 
 Exact private summaries, each recording medians, matched output counts and swap writes:
 
