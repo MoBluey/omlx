@@ -1,0 +1,170 @@
+{
+  "model": "ornith",
+  "candidate": "tb24",
+  "tb": 24,
+  "db": 16,
+  "device": {
+    "device_name": "Apple M4 Max",
+    "max_recommended_working_set_size": 115448725504,
+    "memory_size": 137438953472,
+    "architecture": "applegpu_g16s",
+    "max_buffer_length": 86586540032,
+    "resource_limit": 499000
+  },
+  "correctness": [
+    {
+      "case": "synthetic-64",
+      "shape": [
+        1,
+        64,
+        16,
+        128
+      ],
+      "output_exact": true,
+      "state_exact": true,
+      "restore_output_exact": true,
+      "restore_state_exact": true,
+      "snapshot_unchanged": true,
+      "continuation_output_exact": true,
+      "continuation_state_exact": true
+    },
+    {
+      "case": "synthetic-79",
+      "shape": [
+        1,
+        79,
+        16,
+        128
+      ],
+      "output_exact": true,
+      "state_exact": true,
+      "restore_output_exact": true,
+      "restore_state_exact": true,
+      "snapshot_unchanged": true,
+      "continuation_output_exact": true,
+      "continuation_state_exact": true
+    },
+    {
+      "case": "synthetic-257",
+      "shape": [
+        1,
+        257,
+        16,
+        128
+      ],
+      "output_exact": true,
+      "state_exact": true,
+      "restore_output_exact": true,
+      "restore_state_exact": true,
+      "snapshot_unchanged": true,
+      "continuation_output_exact": true,
+      "continuation_state_exact": true
+    },
+    {
+      "case": "synthetic-4096",
+      "shape": [
+        1,
+        4096,
+        16,
+        128
+      ],
+      "output_exact": true,
+      "state_exact": true,
+      "restore_output_exact": true,
+      "restore_state_exact": true,
+      "snapshot_unchanged": true,
+      "continuation_output_exact": true,
+      "continuation_state_exact": true
+    },
+    {
+      "case": "production-capture",
+      "shape": [
+        1,
+        4096,
+        16,
+        128
+      ],
+      "output_exact": true,
+      "state_exact": true,
+      "restore_output_exact": true,
+      "restore_state_exact": true,
+      "snapshot_unchanged": true,
+      "continuation_output_exact": true,
+      "continuation_state_exact": true
+    }
+  ],
+  "timings": [
+    {
+      "case": "synthetic-257",
+      "samples_ms": {
+        "baseline": [
+          0.853125,
+          0.816709,
+          0.786666,
+          0.816958,
+          0.940667,
+          0.835833
+        ],
+        "candidate": [
+          0.809,
+          0.804,
+          0.849959,
+          0.862375,
+          0.897125,
+          0.911792
+        ]
+      },
+      "baseline_median_ms": 0.8263955000000001,
+      "candidate_median_ms": 0.856167
+    },
+    {
+      "case": "synthetic-4096",
+      "samples_ms": {
+        "baseline": [
+          3.839333,
+          3.799958,
+          3.828,
+          3.839042,
+          3.86825,
+          3.966041
+        ],
+        "candidate": [
+          4.009375,
+          4.028083,
+          4.251292,
+          3.782666,
+          4.140833,
+          4.238833
+        ]
+      },
+      "baseline_median_ms": 3.8391875,
+      "candidate_median_ms": 4.084458
+    },
+    {
+      "case": "production-capture",
+      "samples_ms": {
+        "baseline": [
+          3.824625,
+          3.752125,
+          3.491167,
+          3.797167,
+          3.788875,
+          3.813208
+        ],
+        "candidate": [
+          4.125667,
+          4.042084,
+          4.076208,
+          4.049958,
+          3.642083,
+          4.070291
+        ]
+      },
+      "baseline_median_ms": 3.793021,
+      "candidate_median_ms": 4.060124500000001
+    }
+  ],
+  "peak_gpu_bytes": 377040876,
+  "active_gpu_bytes": 304131872,
+  "swap_write_bytes": 0
+}
