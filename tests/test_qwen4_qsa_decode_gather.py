@@ -1702,3 +1702,40 @@ def test_batch_gather_rows_below_the_crossover_keep_the_dense_path(monkeypatch):
         pair.attention._gathered_batch_paddings(x, mask, pair.fast, None, None, False)
         is None
     )
+
+
+@pytest.mark.parametrize("position_rank", [2, 3])
+def test_fp32_bank_verify_accepted_prefix_and_continuation(monkeypatch, position_rank):
+    """Production attention producers/consumers, a four-row verify with two
+    accepted rows, then different continuation rows. No model weights loaded."""
+    config, attention, (trial, baseline) = _attention_and_caches(3001)
+    monkeypatch.setattr(language, "_row_exact_verify_armed", lambda: True)
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_STATS", {
+        "calls": 0, "blocks_cast": 0, "allocations": 0,
+    })
+
+    def run(hidden, cache, enabled, verify=False):
+        monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", enabled)
+        positions = mx.arange(cache.offset, cache.offset + hidden.shape[1], dtype=mx.int32)[None]
+        if position_rank == 3:
+            positions = mx.broadcast_to(positions[None], (3, 1, hidden.shape[1]))
+        result = attention(hidden, cache=cache, position_ids=positions, target_verify=verify)
+        mx.eval(result, cache.state)
+        return result
+
+    window = mx.random.normal((1, 4, config.hidden_size)).astype(mx.bfloat16)
+    actual = run(window, trial, True, verify=True)
+    expected = run(window, baseline, False, verify=True)
+    assert mx.array_equal(actual.view(mx.uint16), expected.view(mx.uint16)).item()
+    assert trial._pooled_index_keys_f32 is not None
+    assert baseline._pooled_index_keys_f32 is None
+    assert trial.trim(2) == baseline.trim(2) == 2
+    assert trial._pooled_index_f32_offset == trial.offset // RATIO
+    for _ in range(5):
+        hidden = mx.random.normal((1, 1, config.hidden_size)).astype(mx.bfloat16)
+        actual, expected = run(hidden, trial, True), run(hidden, baseline, False)
+        assert mx.array_equal(actual.view(mx.uint16), expected.view(mx.uint16)).item()
+        for a, b in zip(trial.state, baseline.state):
+            assert mx.array_equal(a, b).item()
+    assert language._QSA_FP32_BANK_STATS["calls"] >= 6
+    assert language._QSA_FP32_BANK_STATS["blocks_cast"] > 0

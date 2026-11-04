@@ -219,6 +219,86 @@ def test_qsa_ephemeral_pool_rebuilds_after_restore_extract_and_trim():
     assert mx.array_equal(rebuilt, expected).item()
 
 
+@pytest.fixture
+def fp32_bank(monkeypatch):
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", True)
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_STATS", {
+        "calls": 0, "blocks_cast": 0, "allocations": 0,
+    })
+
+
+def _pools(cache, tag):
+    args = (4, lambda x: x, _identity_rope)
+    return (
+        cache.pooled_indexer_keys(*args, cache_tag=tag),
+        cache.pooled_indexer_keys_f32(*args, cache_tag=tag),
+    )
+
+
+def _assert_fp32_bank(bank, fp32):
+    mx.eval(bank, fp32)
+    assert fp32.dtype == mx.float32 and fp32.shape == bank.shape
+    assert mx.array_equal(fp32, bank.astype(mx.float32)).item()
+
+
+def test_fp32_bank_follows_the_pool_through_growth_trim_and_invalidation(fp32_bank):
+    """The FP32 bank holds the pooled bank's values while blocks complete, past
+    a capacity growth, after a trim re-pools the tail, and after the pool is
+    rebuilt for another tag."""
+    cache = language.QSAKVCache()
+    raw = mx.sin(mx.arange(8300 * 8, dtype=mx.float32)).reshape(1, 8300, 8)
+    raw = raw.astype(mx.bfloat16)
+    start = 0
+    for stop in (13, 4000, 8195, 8300):  # 2048 blocks fill the first capacity
+        _append(cache, raw, start, stop)
+        _assert_fp32_bank(*_pools(cache, cache))
+        start = stop
+    assert cache._pooled_index_keys_f32.shape == cache._pooled_index_keys.shape
+
+    assert cache.trim(110) == 110  # 8190 tokens: 2047 complete blocks
+    assert cache._pooled_index_f32_offset == 2047
+    replacement = mx.cos(mx.arange(110 * 8, dtype=mx.float32)).reshape(1, 110, 8)
+    replaced = mx.concatenate([raw[:, :8190], replacement.astype(mx.bfloat16)], axis=1)
+    _append(cache, replaced, 8190, 8300)
+    _assert_fp32_bank(*_pools(cache, cache))
+
+    _assert_fp32_bank(*_pools(cache, object()))
+
+
+def test_portable_scores_from_the_fp32_bank_keep_their_bits(fp32_bank):
+    """Decode's portable head scores read the FP32 bank with the bits they had
+    when they cast the pooled bank on every call."""
+    mx.random.seed(911)
+    cache = language.QSAKVCache()
+    raw = mx.random.normal((1, 6003, 128)).astype(mx.bfloat16)
+    _append(cache, raw, 0, 6003)
+    bank, fp32 = _pools(cache, cache)
+    queries = mx.random.normal((1, 1, 4, 128)).astype(mx.bfloat16)
+    expected = qsa_fast._portable_indexer_head_scores(queries, bank, 128)
+    actual = qsa_fast._portable_indexer_head_scores(queries, fp32, 128)
+    mx.eval(expected, actual)
+    assert actual.shape == expected.shape == (1, 1, 4, 6003 // 4)
+    assert mx.array_equal(actual.view(mx.uint32), expected.view(mx.uint32)).item()
+
+
+@pytest.mark.parametrize("rows", [1, 3])
+def test_official_selection_scores_from_the_fp32_bank_keep_their_bits(rows, fp32_bank):
+    """The official indexer's FP32 block scores (masked decode and prefill rows)
+    read the FP32 bank with the bits they had casting the pooled bank."""
+    mx.random.seed(912 + rows)
+    cache = language.QSAKVCache()
+    raw = mx.random.normal((1, 6003, 128)).astype(mx.bfloat16)
+    _append(cache, raw, 0, 6003)
+    bank, fp32 = _pools(cache, cache)
+    query = mx.random.normal((1, 4, rows, 128)).astype(mx.bfloat16)
+    q32 = query.astype(mx.float32)
+    expected = q32 @ mx.expand_dims(bank, 1).astype(mx.float32).transpose(0, 1, 3, 2)
+    actual = q32 @ mx.expand_dims(fp32, 1).astype(mx.float32).transpose(0, 1, 3, 2)
+    mx.eval(expected, actual)
+    assert actual.shape == expected.shape == (1, 4, rows, 6003 // 4)
+    assert mx.array_equal(actual.view(mx.uint32), expected.view(mx.uint32)).item()
+
+
 @pytest.mark.parametrize("dtype", [mx.float16, mx.bfloat16])
 def test_portable_qsa_flattened_gemm_is_exactly_the_broadcast_reference(dtype):
     mx.random.seed(909)
@@ -231,3 +311,47 @@ def test_portable_qsa_flattened_gemm_is_exactly_the_broadcast_reference(dtype):
     actual = qsa_fast._portable_indexer_scores(queries, pooled, 128)
     mx.eval(actual, expected)
     assert mx.array_equal(actual, expected).item()
+
+
+def test_fp32_bank_restore_clone_accounting_and_disable(fp32_bank, monkeypatch):
+    import copy
+
+    cache = language.QSAKVCache()
+    raw = mx.sin(mx.arange(29 * 8, dtype=mx.float32)).reshape(1, 29, 8).astype(mx.bfloat16)
+    _append(cache, raw, 0, 13)
+    bank = cache.pooled_indexer_keys(4, lambda x: x, _identity_rope, cache_tag=cache)
+    before = cache.nbytes
+    _assert_fp32_bank(bank, cache.pooled_indexer_keys_f32(
+        4, lambda x: x, _identity_rope, cache_tag=cache
+    ))
+    mirror = cache._pooled_index_keys_f32
+    assert cache.nbytes == before + mirror.nbytes
+    assert language._QSA_FP32_BANK_STATS == {"calls": 1, "blocks_cast": 3, "allocations": 1}
+    _assert_fp32_bank(*_pools(cache, cache))
+    assert language._QSA_FP32_BANK_STATS["blocks_cast"] == 3
+
+    # Raw cache state is the persistence contract. Both restoration routes must
+    # discard derived banks, and deepcopy must isolate subsequent suffix writes.
+    snapshot = cache.prefix_cache_snapshot()
+    restored = language.QSAKVCache()
+    restored.prefix_cache_restore(snapshot)
+    extracted = cache.extract(0)
+    state_restored = language.QSAKVCache()
+    state_restored.state = cache.state
+    for other in (restored, extracted, state_restored):
+        assert other._pooled_index_keys_f32 is None
+        _assert_fp32_bank(*_pools(other, other))
+    cloned = copy.deepcopy(cache)
+    _append(cloned, raw, 13, 29)
+    _assert_fp32_bank(*_pools(cloned, cloned))
+    assert cache._pooled_index_f32_offset == 3
+    _assert_fp32_bank(*_pools(cache, cache))
+
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", False)
+    original = cache.pooled_indexer_keys_f32(4, lambda x: x, _identity_rope, cache_tag=cache)
+    assert original.dtype == mx.bfloat16
+    assert cache._pooled_index_keys_f32 is None
+    assert cache.nbytes == before
+    monkeypatch.setattr(language, "_QSA_FP32_BANK_ENABLED", True)
+    _append(cache, raw, 13, 29)
+    _assert_fp32_bank(*_pools(cache, cache))
