@@ -1,0 +1,293 @@
+{
+  "model": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/models/candidates/omlx/jedisct1/Qwen3.8-Flash-Next-Uncensored-oQ4e-100K-MTP",
+  "cpu_only": true,
+  "rows": [
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "What about the async version?",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 67,
+      "unavoidable_tokens": 16,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": " x",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 62,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "A",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 62,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "\nhello",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 62,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "\u4f60\u597d",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 62,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "\ud83d\ude00",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 62,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "medium",
+        "preserve_thinking": false
+      },
+      "future_user": "<tool_response>ok</tool_response>",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 68,
+      "unavoidable_tokens": 17,
+      "exact": false,
+      "naive_exact": true,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "What about the async version?",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 93,
+      "unavoidable_tokens": 16,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": " x",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 88,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "A",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 88,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "\nhello",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 88,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "\u4f60\u597d",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 88,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "\ud83d\ude00",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 88,
+      "unavoidable_tokens": 11,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": true,
+        "reasoning_effort": "low",
+        "preserve_thinking": false
+      },
+      "future_user": "<tool_response>ok</tool_response>",
+      "prefix_tokens": 77,
+      "real_prompt_tokens": 94,
+      "unavoidable_tokens": 17,
+      "exact": false,
+      "naive_exact": true,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "What about the async version?",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 69,
+      "unavoidable_tokens": 18,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": " x",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 64,
+      "unavoidable_tokens": 13,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "A",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 64,
+      "unavoidable_tokens": 13,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "\nhello",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 64,
+      "unavoidable_tokens": 13,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "\u4f60\u597d",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 64,
+      "unavoidable_tokens": 13,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "\ud83d\ude00",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 64,
+      "unavoidable_tokens": 13,
+      "exact": true,
+      "naive_exact": false,
+      "prefix_contains_think": false
+    },
+    {
+      "kwargs": {
+        "enable_thinking": false,
+        "preserve_thinking": false
+      },
+      "future_user": "<tool_response>ok</tool_response>",
+      "prefix_tokens": 51,
+      "real_prompt_tokens": 70,
+      "unavoidable_tokens": 19,
+      "exact": false,
+      "naive_exact": true,
+      "prefix_contains_think": false
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "model_loaded": false,
+  "array_hash_checks": [
+    "float32",
+    "float16",
+    "bfloat16",
+    "int32",
+    "uint32",
+    "bool",
+    "scalar",
+    "strided",
+    "empty"
+  ],
+  "nested_leaves": true,
+  "random_state_sequence": true,
+  "sampler_metadata_preserved": true,
+  "eight_tokens_exact": true,
+  "rng_before_after_exact": true,
+  "saved_logprobs_exact": true,
+  "active_mlx_bytes": 2118
+}
