@@ -29,10 +29,19 @@ GDN/context-copy implementations are unchanged. These are focused component
 and attention integration checks; main owns full-model combined engagement
 and performance qualification.
 
-No native-library setup was required for these tests. Source-cli serving may
-need the four ignored `_ext.cpython-312-darwin.so` files under
-`omlx/custom_kernels/{lowbit,quant_matmul,attention,sparse_index}` copied from
-the r3 sealed site with identical hashes. Do not recompile or change closure.
+No native-library setup was required for these focused tests. Source-cli
+serving requires all nine ignored native files from the r3 sealed site:
+four `_ext.cpython-312-darwin.so` extensions and five `.metallib` resources
+under `omlx/custom_kernels/{lowbit,quant_matmul,attention,sparse_index}`.
+`quant_matmul` includes both its regular and `_nax` libraries. Main copied
+all nine byte-for-byte and recorded their hashes in `../native-closure.json`;
+the run preflight verifies every hash before model startup.
+
+Import availability alone is insufficient: `source-cli --check` imported
+the four extensions, but the first full-model prefill then failed because
+attention/quant_matmul `.metallib` resources were absent. Future source
+worktrees must verify the full native resource closure before serving.
+Do not recompile or change the pinned closure.
 
 Exact executed command (Python isolated mode; no bytecode/cache writes):
 
