@@ -10,7 +10,9 @@ use mlx-vlm's general implementation.
 from __future__ import annotations
 
 import functools
+import logging
 import math
+import os
 from collections.abc import Callable
 
 import mlx.core as mx
@@ -413,9 +415,10 @@ _DECODE_SDPA_DISABLED = False
 _DECODE_SDPA_KERNELS: list = []
 _DECODE_SDPA_VALIDATED: set[tuple] = set()
 _DECODE_SDPA_SCALES: dict[float, mx.array] = {}
-# Independent, default-off M4 trial. Keep the original d-class dispatch.
-MASKED_S_ENABLED = False
+# Explicit process opt-in for the qualified M4 path; retain d-class dispatch.
+MASKED_S_ENABLED = os.environ.get("OMLX_QWEN4_MASKED_S") == "1"
 MASKED_S_CALLS = 0
+_LOGGER = logging.getLogger(__name__)
 
 _DECODE_SDPA_PASS1_SOURCE = r"""
     constexpr int BD = 32;
@@ -664,10 +667,14 @@ def masked_decode_sdpa(
             mx.eval(output)
             _DECODE_SDPA_VALIDATED.add(signature)
         if _gpu_class() == "s":
+            if MASKED_S_CALLS == 0:
+                _LOGGER.info("Qwen M4 masked attention active")
             MASKED_S_CALLS += 1
         return output
     except Exception:
         _DECODE_SDPA_DISABLED = True
+        if MASKED_S_ENABLED and _gpu_class() == "s":
+            _LOGGER.warning("Qwen M4 masked attention disabled after kernel failure")
         return None
 
 

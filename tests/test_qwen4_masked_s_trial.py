@@ -12,6 +12,26 @@ apply_mlx_vlm_qwen4_exp_compat_patch()
 qsa = importlib.import_module("mlx_vlm.models.qwen4_exp.qsa_fast")
 
 
+@pytest.mark.parametrize("value", [None, "", "0", "true", "1"])
+def test_process_environment_opt_in_scope(monkeypatch, value):
+    if value is None:
+        monkeypatch.delenv("OMLX_QWEN4_MASKED_S", raising=False)
+    else:
+        monkeypatch.setenv("OMLX_QWEN4_MASKED_S", value)
+    spec = importlib.util.spec_from_file_location(qsa.__name__, qsa.__file__)
+    fresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fresh)
+    assert fresh.MASKED_S_ENABLED is (value == "1")
+    monkeypatch.setattr(fresh, "_gpu_class", lambda: "s")
+    assert fresh._two_pass_blocks(12, 28287) == (256 if value == "1" else None)
+    assert fresh._two_pass_blocks(12, 8192) is None
+    assert fresh._two_pass_blocks(4, 28287) is None
+    monkeypatch.setattr(fresh, "_gpu_class", lambda: "unknown")
+    assert fresh._two_pass_blocks(12, 28287) is None
+    monkeypatch.setattr(fresh, "_gpu_class", lambda: "d")
+    assert fresh._two_pass_blocks(12, 28287) == 512
+
+
 def test_partition_rules_and_default_off(monkeypatch):
     monkeypatch.setattr(qsa, "_gpu_class", lambda: "s")
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", False)
@@ -62,7 +82,7 @@ def test_masked_s_matches_mlx_bits(monkeypatch, length, kind):
     assert mx.array_equal(actual.view(mx.uint16), expected.view(mx.uint16)).item()
 
 
-def test_masked_s_initial_launch_failure_and_off(monkeypatch):
+def test_masked_s_initial_launch_failure_and_off(monkeypatch, caplog):
     monkeypatch.setattr(qsa, "_gpu_class", lambda: "s")
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", False)
     monkeypatch.setattr(qsa, "_DECODE_SDPA_DISABLED", False)
@@ -71,6 +91,7 @@ def test_masked_s_initial_launch_failure_and_off(monkeypatch):
     mask = mx.ones((1, 1, 1, 8193), dtype=mx.bool_)
     before = qsa.MASKED_S_CALLS
     assert qsa.masked_decode_sdpa(queries, keys, keys, mask, 0.0625) is None
+    assert not caplog.records
     monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
 
     def fail(**kwargs):
@@ -80,6 +101,30 @@ def test_masked_s_initial_launch_failure_and_off(monkeypatch):
     assert qsa.masked_decode_sdpa(queries, keys, keys, mask, 0.0625) is None
     assert qsa._DECODE_SDPA_DISABLED
     assert qsa.MASKED_S_CALLS == before
+    assert qsa.masked_decode_sdpa(queries, keys, keys, mask, 0.0625) is None
+    assert [record.message for record in caplog.records] == [
+        "Qwen M4 masked attention disabled after kernel failure"
+    ]
+
+
+def test_masked_s_logs_first_success_only(monkeypatch, caplog):
+    if qsa._gpu_class() != "s":
+        pytest.skip("actual s-class Metal required")
+    monkeypatch.setattr(qsa, "MASKED_S_ENABLED", True)
+    monkeypatch.setattr(qsa, "MASKED_S_CALLS", 0)
+    monkeypatch.setattr(qsa, "_DECODE_SDPA_DISABLED", False)
+    caplog.set_level("INFO", logger=qsa.__name__)
+    queries = mx.zeros((1, 24, 1, 256), dtype=mx.bfloat16)
+    keys = mx.zeros((1, 2, 8193, 256), dtype=mx.bfloat16)
+    mask = mx.ones((1, 1, 1, 8193), dtype=mx.bool_)
+    for _ in range(2):
+        actual = qsa.masked_decode_sdpa(queries, keys, keys, mask, 0.0625)
+        assert actual is not None
+        mx.eval(actual)
+    assert qsa.MASKED_S_CALLS == 2
+    assert [record.message for record in caplog.records] == [
+        "Qwen M4 masked attention active"
+    ]
 
 
 def test_masked_s_verify_rollback_and_continuation(monkeypatch):

@@ -32,3 +32,27 @@ bit comparisons against MLX for QSA/all/sparse/empty-selected masks, independent
 cache and mask strides, explicit off/build-failure controls, and two-row
 verification followed by accepted-prefix trim and continuation. GPU execution
 is pending the exclusive slot. Only static/AST checks have run so far.
+
+## Qualified runtime activation - 6 November 2026
+
+The masked winner alone is retained on pinned idle-cache source
+`0a33621d7fc180057e1934ed7ede7a07fb4c3d51`. The numerical implementation is
+unchanged from `e2a79c9028ce819bc2a33dcb70160c0437688385`; no preparation,
+index-bank or selection-barrier experiment is included.
+
+Set `OMLX_QWEN4_MASKED_S=1` before process startup to enable the qualified
+s-class path. Unset, empty and every other value leave it disabled. The
+existing GPU, shape, context and fallback checks remain unchanged. The managed
+Qwen runtime owns the opt-in; the package remains default off.
+
+The first successful s-class dispatch logs `Qwen M4 masked attention active`
+at INFO once per process. A kernel failure disabling the enabled s-class path
+logs `Qwen M4 masked attention disabled after kernel failure` at WARNING.
+
+Focused real-M4 verification passed: 41 checks in 5.53 seconds, including
+environment activation/scope, partition boundaries, bit-exact outputs,
+independent strides, failure fallback, verification-cache rollback and
+continuation and one-time success/failure logging. Tests used Python 3.12.15
+with `-BIS`, the sealed r2 dependency
+closure and isolated pytest dependencies; no runtime installation or full
+model load was performed here.
