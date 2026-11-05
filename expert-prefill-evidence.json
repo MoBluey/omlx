@@ -1,0 +1,1611 @@
+{
+  "decision": "Archive both variants; serving route unchanged",
+  "device": "Apple M4 Max 128GiB applegpu_g16s",
+  "installed_source_commit": "0713dc8ea7d8e4a5b269a10cdbea4706a0e68240",
+  "mlx_version": "0.32.4",
+  "diagnostic_profile": {
+    "diagnostic_only": true,
+    "scheduling": "MLX_MAX_OPS_PER_BUFFER=0",
+    "valid_buffers": 4075,
+    "invalid_or_zero_buffers": 634,
+    "empty_kernel_buffers": 996,
+    "summed_buffer_seconds": 8.148712158203125,
+    "gpu_interval_union_seconds": 5.628728457959369,
+    "overlap_seconds": 2.519983700243756,
+    "span_seconds": 5.665296624880284,
+    "groups": [
+      {
+        "kernels": [
+          "gather_mm_offsets",
+          "affine_gather_qmm_rhs_nt_bfloat16_t_gs_64_b_4_bm_16_bn_32_bk_32_wm_1_wn_2_align_N_t_align_K_t"
+        ],
+        "buffers": 92,
+        "summed_buffer_seconds": 1.9667863342911005,
+        "interval_union_seconds": 1.9667863342911005,
+        "share_of_summed_buffer_seconds": 0.24136161593475614
+      },
+      {
+        "kernels": [
+          "qwen35_q4_affine_qmm_t_bfloat16_t_bm_64_bk_32_bn_64"
+        ],
+        "buffers": 123,
+        "summed_buffer_seconds": 1.5146377515047789,
+        "interval_union_seconds": 1.465413668192923,
+        "share_of_summed_buffer_seconds": 0.18587449428803632
+      },
+      {
+        "kernels": [
+          "affine_qmm_t_splitk_bfloat16_t_gs_64_b_4_alN_false",
+          "steel_gemm_splitk_accum_bfloat16_float32"
+        ],
+        "buffers": 72,
+        "summed_buffer_seconds": 0.7628326241392642,
+        "interval_union_seconds": 0.5511188330128789,
+        "share_of_summed_buffer_seconds": 0.09361388760938595
+      },
+      {
+        "kernels": [
+          "affine_qmm_t_splitk_bfloat16_t_gs_64_b_8_alN_false",
+          "steel_gemm_splitk_accum_bfloat16_float32"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.5762837084475905,
+        "interval_union_seconds": 0.5762837084475905,
+        "share_of_summed_buffer_seconds": 0.07072083260021139
+      },
+      {
+        "kernels": [
+          "qwen4_qsa_sparse_gqa_bfloat16_bk64_dc64_gqa12_hp16_d256_wm2"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.5351655001286417,
+        "interval_union_seconds": 0.5351655001286417,
+        "share_of_summed_buffer_seconds": 0.06567485631332587
+      },
+      {
+        "kernels": [
+          "affine_qmm_t_bfloat16_t_gs_64_b_4_alN_true_batch_0"
+        ],
+        "buffers": 208,
+        "summed_buffer_seconds": 0.49196062283590436,
+        "interval_union_seconds": 0.49196062283590436,
+        "share_of_summed_buffer_seconds": 0.06037280655945844
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_gdn_prefill_prework__bfloat16_t_16_48_128_128_3_10240_1_bfloat16_t_bfloat16_t_bfloat16_t_bfloat16_ts_bfloat16_ts_int32_ts_bfloat16_t_bfloat16_t_bfloat16_t_bfloat16_t"
+        ],
+        "buffers": 35,
+        "summed_buffer_seconds": 0.3956077506300062,
+        "interval_union_seconds": 0.3956077506300062,
+        "share_of_summed_buffer_seconds": 0.0485484998057953
+      },
+      {
+        "kernels": [
+          "qwen35_q5_affine_qmm128_t_bfloat16_t_bm_64_bk_32_bn_64"
+        ],
+        "buffers": 36,
+        "summed_buffer_seconds": 0.38518395833671093,
+        "interval_union_seconds": 0.38518395833671093,
+        "share_of_summed_buffer_seconds": 0.04726930475129802
+      },
+      {
+        "kernels": [
+          "affine_qmm_t_bfloat16_t_gs_128_b_8_alN_true_batch_0"
+        ],
+        "buffers": 144,
+        "summed_buffer_seconds": 0.21214128960855305,
+        "interval_union_seconds": 0.2089124561753124,
+        "share_of_summed_buffer_seconds": 0.026033719867622908
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_gdn_pipelined_tb12__bfloat16_t_128_128_16_48_bfloat16_t_bfloat16_t_bfloat16_t_float_float_float_int32_ts_bfloat16_t_float"
+        ],
+        "buffers": 35,
+        "summed_buffer_seconds": 0.16220979113131762,
+        "interval_union_seconds": 0.16220979113131762,
+        "share_of_summed_buffer_seconds": 0.01990618738054512
+      },
+      {
+        "kernels": [
+          "vs_Addint32"
+        ],
+        "buffers": 24,
+        "summed_buffer_seconds": 0.14975200034677982,
+        "interval_union_seconds": 0.14975200034677982,
+        "share_of_summed_buffer_seconds": 0.018377382516331475
+      },
+      {
+        "kernels": [
+          "g2_copybfloat16bfloat16"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.09070662525482476,
+        "interval_union_seconds": 0.09070662525482476,
+        "share_of_summed_buffer_seconds": 0.011131406226382956
+      },
+      {
+        "kernels": [
+          "arangeuint32"
+        ],
+        "buffers": 156,
+        "summed_buffer_seconds": 0.08907708316110075,
+        "interval_union_seconds": 0.08906304161064327,
+        "share_of_summed_buffer_seconds": 0.01093143081160731
+      },
+      {
+        "kernels": [
+          "gather_mm_offsets",
+          "affine_gather_qmm_rhs_nt_bfloat16_t_gs_64_b_8_bm_16_bn_32_bk_32_wm_1_wn_2_align_N_t_align_K_t"
+        ],
+        "buffers": 4,
+        "summed_buffer_seconds": 0.08163079153746367,
+        "interval_union_seconds": 0.08163079153746367,
+        "share_of_summed_buffer_seconds": 0.010017631001395452
+      },
+      {
+        "kernels": [
+          "steel_gemm_fused_nt_bfloat16_bfloat16_bm64_bn64_bk16_wm2_wn2_has_batch_n_use_out_source_n_do_axpby_n_align_M_t_align_N_t_align_K_t"
+        ],
+        "buffers": 50,
+        "summed_buffer_seconds": 0.06732533359900117,
+        "interval_union_seconds": 0.06729504186660051,
+        "share_of_summed_buffer_seconds": 0.008262082681522414
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_hc_prefill_write_norm__bfloat16_t_10240_2560_4_bfloat16_t_bfloat16_t_bfloat16_t_bfloat16_t_floatc_bfloat16_t_bfloat16_t"
+        ],
+        "buffers": 94,
+        "summed_buffer_seconds": 0.06361120822839439,
+        "interval_union_seconds": 0.06361120822839439,
+        "share_of_summed_buffer_seconds": 0.007806289753940863
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_hc_prefill_tail_inject__bfloat16_t_4_64_10240_2560_4_bfloat16_t_bfloat16_t_uint32_t_bfloat16_t_bfloat16_t_bfloat16_t_bfloat16_t"
+        ],
+        "buffers": 97,
+        "summed_buffer_seconds": 0.051693832501769066,
+        "interval_union_seconds": 0.051693832501769066,
+        "share_of_summed_buffer_seconds": 0.006343803965357894
+      },
+      {
+        "kernels": [
+          "g2_Multiplybfloat16"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.03680116683244705,
+        "interval_union_seconds": 0.03680116683244705,
+        "share_of_summed_buffer_seconds": 0.004516194230201167
+      },
+      {
+        "kernels": [
+          "g2_copyuint32uint32"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.03571733320131898,
+        "interval_union_seconds": 0.03571733320131898,
+        "share_of_summed_buffer_seconds": 0.004383187491211497
+      },
+      {
+        "kernels": [
+          "gather_frontbfloat16_uint32_int_2"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.03072870778851211,
+        "interval_union_seconds": 0.03072870778851211,
+        "share_of_summed_buffer_seconds": 0.003770989475628761
+      },
+      {
+        "kernels": [
+          "vn_copybfloat16float32"
+        ],
+        "buffers": 80,
+        "summed_buffer_seconds": 0.027945916866883636,
+        "interval_union_seconds": 0.027401791885495186,
+        "share_of_summed_buffer_seconds": 0.0034294887737261782
+      },
+      {
+        "kernels": [
+          "g2_Dividebfloat16"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.027853291481733322,
+        "interval_union_seconds": 0.027853291481733322,
+        "share_of_summed_buffer_seconds": 0.003418121899629752
+      },
+      {
+        "kernels": [
+          "vn_copyfloat32bfloat16"
+        ],
+        "buffers": 70,
+        "summed_buffer_seconds": 0.026824457803741097,
+        "interval_union_seconds": 0.026505957823246717,
+        "share_of_summed_buffer_seconds": 0.003291864687690253
+      },
+      {
+        "kernels": [
+          "moe_weighted_sum_tiled_bfloat16_t_score_float_topk_10_t_256"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.025791748892515898,
+        "interval_union_seconds": 0.025791748892515898,
+        "share_of_summed_buffer_seconds": 0.0031651319118631434
+      },
+      {
+        "kernels": [
+          "v_Sigmoidbfloat16bfloat16"
+        ],
+        "buffers": 49,
+        "summed_buffer_seconds": 0.025714916177093983,
+        "interval_union_seconds": 0.025714916177093983,
+        "share_of_summed_buffer_seconds": 0.0031557030949003833
+      },
+      {
+        "kernels": [
+          "arangeint32"
+        ],
+        "buffers": 38,
+        "summed_buffer_seconds": 0.02159629133529961,
+        "interval_union_seconds": 0.02159629133529961,
+        "share_of_summed_buffer_seconds": 0.0026502704864300687
+      },
+      {
+        "kernels": [
+          "v_copybfloat16float32"
+        ],
+        "buffers": 53,
+        "summed_buffer_seconds": 0.020406416384503245,
+        "interval_union_seconds": 0.020406416384503245,
+        "share_of_summed_buffer_seconds": 0.0025042504862514458
+      },
+      {
+        "kernels": [
+          "vn_Sigmoidbfloat16bfloat16"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.01809066627174616,
+        "interval_union_seconds": 0.01809066627174616,
+        "share_of_summed_buffer_seconds": 0.0022200644617854973
+      },
+      {
+        "kernels": [
+          "gg1_copyint32int32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.017721583601087332,
+        "interval_union_seconds": 0.017721583601087332,
+        "share_of_summed_buffer_seconds": 0.0021747710873855587
+      },
+      {
+        "kernels": [
+          "g3_copybfloat16bfloat16",
+          "custom_kernel_mrope_apply_half_split_64_2d__bfloat16_t_bfloat16_t_int32_t_float_int32_t_bfloat16_t"
+        ],
+        "buffers": 50,
+        "summed_buffer_seconds": 0.01735287462361157,
+        "interval_union_seconds": 0.016585124423727393,
+        "share_of_summed_buffer_seconds": 0.0021295235721564693
+      },
+      {
+        "kernels": [
+          "rmsfloat32"
+        ],
+        "buffers": 54,
+        "summed_buffer_seconds": 0.017313500633463264,
+        "interval_union_seconds": 0.01630529249086976,
+        "share_of_summed_buffer_seconds": 0.002124691644192408
+      },
+      {
+        "kernels": [
+          "CV2ISigmoidADV2IBroadcastACEV2IBroadcastCAFV2IMultiplyDEGV2IBroadcastFBHV2IBroadcastBFIV2OMultiplyGH_VV_V2V2_11160318154034397263_strided_2"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.017012583557516336,
+        "interval_union_seconds": 0.017012583557516336,
+        "share_of_summed_buffer_seconds": 0.00208776346829114
+      },
+      {
+        "kernels": [
+          "ss_Maximumint32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.01696516666561365,
+        "interval_union_seconds": 0.01696516666561365,
+        "share_of_summed_buffer_seconds": 0.0020819445252505575
+      },
+      {
+        "kernels": [
+          "gather_frontbfloat16_int32_int_2"
+        ],
+        "buffers": 4,
+        "summed_buffer_seconds": 0.014749916736036539,
+        "interval_union_seconds": 0.01474916678853333,
+        "share_of_summed_buffer_seconds": 0.0018100917604738473
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_gdn_prefill_norm_gate__bfloat16_t_48_128_bfloat16_t_bfloat16_t_bfloat16_t_floats_bfloat16_t"
+        ],
+        "buffers": 35,
+        "summed_buffer_seconds": 0.012770124478265643,
+        "interval_union_seconds": 0.012770124478265643,
+        "share_of_summed_buffer_seconds": 0.0015671340735002213
+      },
+      {
+        "kernels": [
+          "sort_mbsort_uint32_uint32_bn512_tn4",
+          "partition_mbsort_uint32_uint32_bn512_tn4",
+          "merge_mbsort_uint32_uint32_bn512_tn4",
+          "partition_mbsort_uint32_uint32_bn512_tn4",
+          "merge_mbsort_uint32_uint32_bn512_tn4",
+          "partition_mbsort_uint32_uint32_bn512_tn4",
+          "merge_mbsort_uint32_uint32_bn512_tn4",
+          "partition_mbsort_uint32_uint32_bn512_tn4",
+          "merge_mbsort_uint32_uint32_bn512_tn4",
+          "partition_mbsort_uint32_uint32_bn512_tn4",
+          "merge_mbsort_uint32_uint32_bn512_tn4",
+          "v_copyuint32uint32"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.012745333602651954,
+        "interval_union_seconds": 0.012745333602651954,
+        "share_of_summed_buffer_seconds": 0.0015640917675342739
+      },
+      {
+        "kernels": [
+          "qwen4_qsa_indexer_score_bfloat16_bm64_bn64_bk16_wm2_wn2"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.011967417085543275,
+        "interval_union_seconds": 0.011967417085543275,
+        "share_of_summed_buffer_seconds": 0.0014686268030091043
+      },
+      {
+        "kernels": [
+          "vs_FloorDivideint32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.011820416897535324,
+        "interval_union_seconds": 0.011820416897535324,
+        "share_of_summed_buffer_seconds": 0.001450587119540844
+      },
+      {
+        "kernels": [
+          "carg_block_sort_bfloat16_uint32_bn128_tn4"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.010890041710808873,
+        "interval_union_seconds": 0.010890041710808873,
+        "share_of_summed_buffer_seconds": 0.0013364126133534012
+      },
+      {
+        "kernels": [
+          "v_copyint32int64"
+        ],
+        "buffers": 13,
+        "summed_buffer_seconds": 0.010339416796341538,
+        "interval_union_seconds": 0.010339416796341538,
+        "share_of_summed_buffer_seconds": 0.001268840596600664
+      },
+      {
+        "kernels": [
+          "g2_copybfloat16float32"
+        ],
+        "buffers": 25,
+        "summed_buffer_seconds": 0.007972333813086152,
+        "interval_union_seconds": 0.007972333813086152,
+        "share_of_summed_buffer_seconds": 0.0009783550649854018
+      },
+      {
+        "kernels": [
+          "qwen4_qsa_fp32_topk_indices_topk512_t256"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.0072665412444621325,
+        "interval_union_seconds": 0.0072665412444621325,
+        "share_of_summed_buffer_seconds": 0.0008917410632975996
+      },
+      {
+        "kernels": [
+          "s_copyuint32uint32"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.006997208576649427,
+        "interval_union_seconds": 0.006997208576649427,
+        "share_of_summed_buffer_seconds": 0.0008586888873728955
+      },
+      {
+        "kernels": [
+          "vvn_Addbfloat16"
+        ],
+        "buffers": 52,
+        "summed_buffer_seconds": 0.006953791016712785,
+        "interval_union_seconds": 0.006953791016712785,
+        "share_of_summed_buffer_seconds": 0.0008533607374648226
+      },
+      {
+        "kernels": [
+          "rms_loopedfloat32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.00482679158449173,
+        "interval_union_seconds": 0.00482679158449173,
+        "share_of_summed_buffer_seconds": 0.0005923379658996431
+      },
+      {
+        "kernels": [
+          "vvn_Multiplybfloat16"
+        ],
+        "buffers": 13,
+        "summed_buffer_seconds": 0.004431958543136716,
+        "interval_union_seconds": 0.004431958543136716,
+        "share_of_summed_buffer_seconds": 0.000543884537469539
+      },
+      {
+        "kernels": [
+          "g2_copybfloat16bfloat16",
+          "custom_kernel_omlx_gdn_pipelined_tb12__bfloat16_t_128_128_16_48_bfloat16_t_bfloat16_t_bfloat16_t_float_float_float_int32_ts_bfloat16_t_float"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.0041912083979696035,
+        "interval_union_seconds": 0.0041912083979696035,
+        "share_of_summed_buffer_seconds": 0.0005143399738019226
+      },
+      {
+        "kernels": [
+          "g2_Multiplyfloat32"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 0.004140083212405443,
+        "interval_union_seconds": 0.0034002915490418673,
+        "share_of_summed_buffer_seconds": 0.0005080659534939781
+      },
+      {
+        "kernels": [
+          "row_reduce_small_1_reduce_sumbfloat16"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.003774583339691162,
+        "interval_union_seconds": 0.003774583339691162,
+        "share_of_summed_buffer_seconds": 0.00046321225568034995
+      },
+      {
+        "kernels": [
+          "g3_copybfloat16bfloat16"
+        ],
+        "buffers": 13,
+        "summed_buffer_seconds": 0.0033077083062380552,
+        "interval_union_seconds": 0.0033077083062380552,
+        "share_of_summed_buffer_seconds": 0.00040591792200050404
+      },
+      {
+        "kernels": [
+          "gather_axisbfloat16uint32_intcnc"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.0031334583181887865,
+        "interval_union_seconds": 0.0031334583181887865,
+        "share_of_summed_buffer_seconds": 0.00038453417636483876
+      },
+      {
+        "kernels": [
+          "g1_copybfloat16bfloat16"
+        ],
+        "buffers": 14,
+        "summed_buffer_seconds": 0.003032499458640814,
+        "interval_union_seconds": 0.003032499458640814,
+        "share_of_summed_buffer_seconds": 0.00037214462847212794
+      },
+      {
+        "kernels": [
+          "CV2ISigmoidADV2IBroadcastACEV2IBroadcastCAFV2IMultiplyDEGV2IBroadcastFBHV2IBroadcastBFIV2OMultiplyGH_VV_V2V2_11160318154034397263_contiguous"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.0027498332783579826,
+        "interval_union_seconds": 0.0027498332783579826,
+        "share_of_summed_buffer_seconds": 0.00033745618018790705
+      },
+      {
+        "kernels": [
+          "vn_copyuint32int32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.0016218747477978468,
+        "interval_union_seconds": 0.0016218747477978468,
+        "share_of_summed_buffer_seconds": 0.00019903448745151
+      },
+      {
+        "kernels": [
+          "vs_LessEqualint32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.001610874431207776,
+        "interval_union_seconds": 0.001610874431207776,
+        "share_of_summed_buffer_seconds": 0.00019768454203970685
+      },
+      {
+        "kernels": [
+          "CV2IBroadcastABDV2IBroadcastBAEV2IDivideCDFV2ISigmoidEGV2IBroadcastEFHV2IBroadcastFEIV2OMultiplyGH_VC_V2_2169371982377735806_contiguous"
+        ],
+        "buffers": 97,
+        "summed_buffer_seconds": 0.0011367511469870806,
+        "interval_union_seconds": 0.0011367511469870806,
+        "share_of_summed_buffer_seconds": 0.0001395007118815381
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_hc_prefill_norm__bfloat16_t_10240_2560_bfloat16_t_bfloat16_t_floatc_bfloat16_t"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 0.0011309580877423286,
+        "interval_union_seconds": 0.0011309580877423286,
+        "share_of_summed_buffer_seconds": 0.0001387897947289522
+      },
+      {
+        "kernels": [
+          "gg1_copybfloat16bfloat16",
+          "gg1_copybfloat16bfloat16"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 0.0011210415977984667,
+        "interval_union_seconds": 0.0011210415977984667,
+        "share_of_summed_buffer_seconds": 0.00013757285519895796
+      },
+      {
+        "kernels": [
+          "g2_Selectint32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.001038750633597374,
+        "interval_union_seconds": 0.001038750633597374,
+        "share_of_summed_buffer_seconds": 0.00012747420861487752
+      },
+      {
+        "kernels": [
+          "block_softmax_precise_bfloat16"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.001020125113427639,
+        "interval_union_seconds": 0.001020125113427639,
+        "share_of_summed_buffer_seconds": 0.00012518850753621258
+      },
+      {
+        "kernels": [
+          "gg2_copybfloat16bfloat16"
+        ],
+        "buffers": 25,
+        "summed_buffer_seconds": 0.0009702087845653296,
+        "interval_union_seconds": 0.0009702087845653296,
+        "share_of_summed_buffer_seconds": 0.00011906283664574435
+      },
+      {
+        "kernels": [
+          "g3_Multiplybfloat16"
+        ],
+        "buffers": 5,
+        "summed_buffer_seconds": 0.0009654166642576456,
+        "interval_union_seconds": 0.0009654166642576456,
+        "share_of_summed_buffer_seconds": 0.00011847475349657337
+      },
+      {
+        "kernels": [
+          "Ef4IAsTypeAFf4IExpEGf4INegativeFHV2IBroadcastBCIV2IBroadcastCBJV2IAddHIKV2IBroadcastJDLV2IBroadcastDJMV2ILogAddExpKLNf4IAsTypeMOf4IBroadcastGNPf4IBroadcastNGQf4IMultiplyOPRf4OExpQ_VVVC_V2V2V2_10408321403207385874_strided_2"
+        ],
+        "buffers": 36,
+        "summed_buffer_seconds": 0.0008994590025395155,
+        "interval_union_seconds": 0.0008994590025395155,
+        "share_of_summed_buffer_seconds": 0.00011038050983725696
+      },
+      {
+        "kernels": [
+          "sv_Addint32"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.0007922498043626547,
+        "interval_union_seconds": 0.0007922498043626547,
+        "share_of_summed_buffer_seconds": 9.722392802464064e-05
+      },
+      {
+        "kernels": [
+          "gg3_copybfloat16bfloat16"
+        ],
+        "buffers": 13,
+        "summed_buffer_seconds": 0.0006714996416121721,
+        "interval_union_seconds": 0.0006714996416121721,
+        "share_of_summed_buffer_seconds": 8.240561558383046e-05
+      },
+      {
+        "kernels": [
+          "vvn_Multiplyfloat32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.00061962497420609,
+        "interval_union_seconds": 0.00061962497420609,
+        "share_of_summed_buffer_seconds": 7.603961977995842e-05
+      },
+      {
+        "kernels": [
+          "BV2ISigmoidACV2IBroadcastABDV2IBroadcastBAEV2OMultiplyCD_V_V2_11160318154034397263_contiguous"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.0006130833644419909,
+        "interval_union_seconds": 0.0006130833644419909,
+        "share_of_summed_buffer_seconds": 7.523684142221341e-05
+      },
+      {
+        "kernels": [
+          "scatter_axisuint32uint32_none_intcc"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.0005434153135865927,
+        "interval_union_seconds": 0.0005434153135865927,
+        "share_of_summed_buffer_seconds": 6.668726334130587e-05
+      },
+      {
+        "kernels": [
+          "depthwise_conv_1d_bfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.0005028333980590105,
+        "interval_union_seconds": 0.0005028333980590105,
+        "share_of_summed_buffer_seconds": 6.170710025053706e-05
+      },
+      {
+        "kernels": [
+          "custom_kernel_omlx_qwen4_depthwise_conv1d__bfloat16_t_10240_4_3_bfloat16_t_bfloat16_t_bfloat16_t"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.000447375001385808,
+        "interval_union_seconds": 0.000447375001385808,
+        "share_of_summed_buffer_seconds": 5.490131356958604e-05
+      },
+      {
+        "kernels": [
+          "g3_Addbfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.00042687496170401573,
+        "interval_union_seconds": 0.00042687496170401573,
+        "share_of_summed_buffer_seconds": 5.238557374667975e-05
+      },
+      {
+        "kernels": [
+          "vn_Sigmoidfloat32float32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.00041895825415849686,
+        "interval_union_seconds": 0.00041895825415849686,
+        "share_of_summed_buffer_seconds": 5.141404506928632e-05
+      },
+      {
+        "kernels": [
+          "gather_frontuint32_int32_int_1"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.0004167917650192976,
+        "interval_union_seconds": 0.0004167917650192976,
+        "share_of_summed_buffer_seconds": 5.1148176169129095e-05
+      },
+      {
+        "kernels": [
+          "vn_copyint32uint32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.00039879162795841694,
+        "interval_union_seconds": 0.00039879162795841694,
+        "share_of_summed_buffer_seconds": 4.8939221341492884e-05
+      },
+      {
+        "kernels": [
+          "row_reduce_simple_sumbfloat16"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 0.0003617082256823778,
+        "interval_union_seconds": 0.00033012498170137405,
+        "share_of_summed_buffer_seconds": 4.4388391522487915e-05
+      },
+      {
+        "kernels": [
+          "rmsbfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 0.0003301666583865881,
+        "interval_union_seconds": 0.0003301666583865881,
+        "share_of_summed_buffer_seconds": 4.051764892127362e-05
+      },
+      {
+        "kernels": [
+          "vs_FloorDivideuint32"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.0003257088828831911,
+        "interval_union_seconds": 0.0003257088828831911,
+        "share_of_summed_buffer_seconds": 3.997059615798397e-05
+      },
+      {
+        "kernels": [
+          "gather_frontuint32_uint32_int_1"
+        ],
+        "buffers": 48,
+        "summed_buffer_seconds": 0.00032112584449350834,
+        "interval_union_seconds": 0.00032112584449350834,
+        "share_of_summed_buffer_seconds": 3.940817128633488e-05
+      },
+      {
+        "kernels": [
+          "gn1_Squarebfloat16bfloat16"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.00028187502175569534,
+        "interval_union_seconds": 0.00015400000847876072,
+        "share_of_summed_buffer_seconds": 3.459135827640422e-05
+      },
+      {
+        "kernels": [
+          "col_reduce_small_1_reduce_sumfloat32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 0.0001515415497124195,
+        "interval_union_seconds": 0.0001515415497124195,
+        "share_of_summed_buffer_seconds": 1.8596993828020547e-05
+      },
+      {
+        "kernels": [
+          "affine_dequantize_bfloat16_t_gs_64_b_4"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.00014700018800795078,
+        "interval_union_seconds": 0.00014700018800795078,
+        "share_of_summed_buffer_seconds": 1.8039683468260565e-05
+      },
+      {
+        "kernels": [
+          "custom_kernel_mrope_apply_half_split_64_2d__bfloat16_t_bfloat16_t_int32_t_float_int32_t_bfloat16_t"
+        ],
+        "buffers": 24,
+        "summed_buffer_seconds": 0.0001309998333454132,
+        "interval_union_seconds": 0.0001309998333454132,
+        "share_of_summed_buffer_seconds": 1.607613949322515e-05
+      },
+      {
+        "kernels": [
+          "vsn_Multiplybfloat16"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 0.00010475004091858864,
+        "interval_union_seconds": 0.00010475004091858864,
+        "share_of_summed_buffer_seconds": 1.2854797038466886e-05
+      },
+      {
+        "kernels": [
+          "gg1_copybfloat16bfloat16"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 7.854169234633446e-05,
+        "interval_union_seconds": 7.854169234633446e-05,
+        "share_of_summed_buffer_seconds": 9.63854052290561e-06
+      },
+      {
+        "kernels": [
+          "vs_Addfloat32"
+        ],
+        "buffers": 5,
+        "summed_buffer_seconds": 7.437518797814846e-05,
+        "interval_union_seconds": 7.437518797814846e-05,
+        "share_of_summed_buffer_seconds": 9.127232197455476e-06
+      },
+      {
+        "kernels": [],
+        "buffers": 996,
+        "summed_buffer_seconds": 7.287133485078812e-05,
+        "interval_union_seconds": 7.287133485078812e-05,
+        "share_of_summed_buffer_seconds": 8.942681179065846e-06
+      },
+      {
+        "kernels": [
+          "affine_dequantize_bfloat16_t_gs_32_b_4"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 6.849993951618671e-05,
+        "interval_union_seconds": 6.849993951618671e-05,
+        "share_of_summed_buffer_seconds": 8.406228884551944e-06
+      },
+      {
+        "kernels": [
+          "vsn_Multiplyfloat32"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 6.820890121161938e-05,
+        "interval_union_seconds": 6.820890121161938e-05,
+        "share_of_summed_buffer_seconds": 8.370513019404547e-06
+      },
+      {
+        "kernels": [
+          "gatherint32int64_2_2_int"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 6.454181857407093e-05,
+        "interval_union_seconds": 6.454181857407093e-05,
+        "share_of_summed_buffer_seconds": 7.920493118547344e-06
+      },
+      {
+        "kernels": [
+          "ss_Addint32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.8999987989664078e-05,
+        "interval_union_seconds": 2.8999987989664078e-05,
+        "share_of_summed_buffer_seconds": 3.558843094055107e-06
+      },
+      {
+        "kernels": [
+          "v_copyuint32int64"
+        ],
+        "buffers": 12,
+        "summed_buffer_seconds": 2.7291011065244675e-05,
+        "interval_union_seconds": 2.7291011065244675e-05,
+        "share_of_summed_buffer_seconds": 3.3491195339095917e-06
+      },
+      {
+        "kernels": [
+          "g2_Remainderint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 1.8916558474302292e-05,
+        "interval_union_seconds": 1.8916558474302292e-05,
+        "share_of_summed_buffer_seconds": 2.321416943812332e-06
+      },
+      {
+        "kernels": [
+          "v_copyfloat32int32"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 1.674983650445938e-05,
+        "interval_union_seconds": 1.674983650445938e-05,
+        "share_of_summed_buffer_seconds": 2.055519470962991e-06
+      },
+      {
+        "kernels": [
+          "contig_scan_inclusive_max_int64_int64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 1.662527211010456e-05,
+        "interval_union_seconds": 9.916722774505615e-06,
+        "share_of_summed_buffer_seconds": 2.0402330806799054e-06
+      },
+      {
+        "kernels": [
+          "vs_Multiplyint64"
+        ],
+        "buffers": 5,
+        "summed_buffer_seconds": 1.2416625395417213e-05,
+        "interval_union_seconds": 1.2416625395417213e-05,
+        "share_of_summed_buffer_seconds": 1.523753097956427e-06
+      },
+      {
+        "kernels": [
+          "gather_frontint64_uint32_int_1"
+        ],
+        "buffers": 5,
+        "summed_buffer_seconds": 1.0875053703784943e-05,
+        "interval_union_seconds": 1.0875053703784943e-05,
+        "share_of_summed_buffer_seconds": 1.3345733034436946e-06
+      },
+      {
+        "kernels": [
+          "vs_Selectint64"
+        ],
+        "buffers": 4,
+        "summed_buffer_seconds": 1.0708346962928772e-05,
+        "interval_union_seconds": 9.750016033649445e-06,
+        "share_of_summed_buffer_seconds": 1.3141152558872655e-06
+      },
+      {
+        "kernels": [
+          "vs_GreaterEqualint64"
+        ],
+        "buffers": 4,
+        "summed_buffer_seconds": 9.12463292479515e-06,
+        "interval_union_seconds": 9.12463292479515e-06,
+        "share_of_summed_buffer_seconds": 1.1197638041011902e-06
+      },
+      {
+        "kernels": [
+          "vsn_Addbfloat16"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 9.041745215654373e-06,
+        "interval_union_seconds": 9.041745215654373e-06,
+        "share_of_summed_buffer_seconds": 1.1095919257072115e-06
+      },
+      {
+        "kernels": [
+          "gg1_copyint64int64",
+          "gg1_copyint64int64"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 7.4999406933784485e-06,
+        "interval_union_seconds": 7.4999406933784485e-06,
+        "share_of_summed_buffer_seconds": 9.203835585023612e-07
+      },
+      {
+        "kernels": [
+          "g2_Addint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 7.333233952522278e-06,
+        "interval_union_seconds": 7.333233952522278e-06,
+        "share_of_summed_buffer_seconds": 8.999255109459323e-07
+      },
+      {
+        "kernels": [
+          "vv_BitwiseXorint64"
+        ],
+        "buffers": 3,
+        "summed_buffer_seconds": 7.083406671881676e-06,
+        "interval_union_seconds": 7.083406671881676e-06,
+        "share_of_summed_buffer_seconds": 8.692670123034067e-07
+      },
+      {
+        "kernels": [
+          "vn_Rsqrtbfloat16bfloat16"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 6.583286449313164e-06,
+        "interval_union_seconds": 6.583286449313164e-06,
+        "share_of_summed_buffer_seconds": 8.078928696341198e-07
+      },
+      {
+        "kernels": [
+          "vs_Equalint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 5.791662260890007e-06,
+        "interval_union_seconds": 3.041699528694153e-06,
+        "share_of_summed_buffer_seconds": 7.107457164331999e-07
+      },
+      {
+        "kernels": [
+          "gather_axisint64int64_intcc"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 5.749985575675964e-06,
+        "interval_union_seconds": 5.749985575675964e-06,
+        "share_of_summed_buffer_seconds": 7.056312045440926e-07
+      },
+      {
+        "kernels": [
+          "vs_Maximumint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.999805241823196e-06,
+        "interval_union_seconds": 4.999805241823196e-06,
+        "share_of_summed_buffer_seconds": 6.135699905401623e-07
+      },
+      {
+        "kernels": [
+          "vs_Subtractint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.83333133161068e-06,
+        "interval_union_seconds": 4.83333133161068e-06,
+        "share_of_summed_buffer_seconds": 5.931405156758512e-07
+      },
+      {
+        "kernels": [
+          "vs_Addint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.749977961182594e-06,
+        "interval_union_seconds": 4.749977961182594e-06,
+        "share_of_summed_buffer_seconds": 5.829114918976366e-07
+      },
+      {
+        "kernels": [
+          "vv_Subtractint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.499917849898338e-06,
+        "interval_union_seconds": 4.499917849898338e-06,
+        "share_of_summed_buffer_seconds": 5.522244205629932e-07
+      },
+      {
+        "kernels": [
+          "arangeint64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.250090569257736e-06,
+        "interval_union_seconds": 4.250090569257736e-06,
+        "share_of_summed_buffer_seconds": 5.215659219204676e-07
+      },
+      {
+        "kernels": [
+          "s_copyint64int64"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 4.125060513615608e-06,
+        "interval_union_seconds": 4.125060513615608e-06,
+        "share_of_summed_buffer_seconds": 5.062223862531459e-07
+      },
+      {
+        "kernels": [
+          "g1_copyint64int64"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 4.0833838284015656e-06,
+        "interval_union_seconds": 4.0833838284015656e-06,
+        "share_of_summed_buffer_seconds": 5.011078743640386e-07
+      },
+      {
+        "kernels": [
+          "vs_Addbfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 4.00003045797348e-06,
+        "interval_union_seconds": 4.00003045797348e-06,
+        "share_of_summed_buffer_seconds": 4.908788505858242e-07
+      },
+      {
+        "kernels": [
+          "vv_BitwiseAndbool_"
+        ],
+        "buffers": 2,
+        "summed_buffer_seconds": 3.999797627329826e-06,
+        "interval_union_seconds": 3.999797627329826e-06,
+        "share_of_summed_buffer_seconds": 4.908502778937062e-07
+      },
+      {
+        "kernels": [
+          "gg2_copyint64int64",
+          "gg2_copyint64int64"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 3.500143066048622e-06,
+        "interval_union_seconds": 3.500143066048622e-06,
+        "share_of_summed_buffer_seconds": 4.2953328060865505e-07
+      },
+      {
+        "kernels": [
+          "vs_Dividebfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 3.125052899122238e-06,
+        "interval_union_seconds": 3.125052899122238e-06,
+        "share_of_summed_buffer_seconds": 3.8350267360668986e-07
+      },
+      {
+        "kernels": [
+          "vs_Maximumbfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.874992787837982e-06,
+        "interval_union_seconds": 2.874992787837982e-06,
+        "share_of_summed_buffer_seconds": 3.528156022720463e-07
+      },
+      {
+        "kernels": [
+          "v_Absbfloat16bfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.791639417409897e-06,
+        "interval_union_seconds": 2.791639417409897e-06,
+        "share_of_summed_buffer_seconds": 3.4258657849383183e-07
+      },
+      {
+        "kernels": [
+          "v_Signbfloat16bfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.5418121367692947e-06,
+        "interval_union_seconds": 2.5418121367692947e-06,
+        "share_of_summed_buffer_seconds": 3.1192807985130626e-07
+      },
+      {
+        "kernels": [
+          "vv_Multiplybfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.4582259356975555e-06,
+        "interval_union_seconds": 2.4582259356975555e-06,
+        "share_of_summed_buffer_seconds": 3.0167048338097385e-07
+      },
+      {
+        "kernels": [
+          "v_Sqrtbfloat16bfloat16"
+        ],
+        "buffers": 1,
+        "summed_buffer_seconds": 2.1667219698429108e-06,
+        "interval_union_seconds": 2.1667219698429108e-06,
+        "share_of_summed_buffer_seconds": 2.6589747284934107e-07
+      }
+    ]
+  },
+  "profile_window": [
+    {
+      "event": "start",
+      "clock": 2018246.445737583,
+      "chunk": 2,
+      "tokens": 4096,
+      "capture_tensors": true
+    },
+    {
+      "event": "end",
+      "clock": 2018252.112257541,
+      "recorded_tokens": 4096
+    }
+  ],
+  "profile_validation": {
+    "records": 4709,
+    "pids": [
+      30515
+    ],
+    "first_valid_gpu_start": 2018246.4469322918,
+    "last_valid_gpu_end": 2018252.1122289167,
+    "window_seconds": 5.666519957827404
+  },
+  "q8_replay": {
+    "mlx_version": "0.32.4",
+    "source": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/worktrees/expert",
+    "candidate_count": 2,
+    "serving_integration": false,
+    "cases": [
+      {
+        "x_shape": [
+          40960,
+          1,
+          2560
+        ],
+        "weight_shape": [
+          512,
+          1280,
+          640
+        ],
+        "dtype": "mlx.core.bfloat16",
+        "metadata": {
+          "bits": 8,
+          "group_size": 64,
+          "mode": "affine",
+          "sorted_indices": true
+        },
+        "exact_checks": {
+          "m32": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          },
+          "n64": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          }
+        },
+        "samples_seconds": {
+          "baseline": [
+            0.0263563331682235,
+            0.02638549986295402,
+            0.026371457846835256,
+            0.02705108281224966,
+            0.02818512497469783,
+            0.028997167013585567,
+            0.027952041942626238,
+            0.027843000134453177,
+            0.028865916887298226,
+            0.027011665981262922,
+            0.02891229186207056,
+            0.028482459019869566
+          ],
+          "m32": [
+            0.024759875144809484,
+            0.024597125127911568,
+            0.02495058299973607,
+            0.024664165917783976,
+            0.027034082915633917,
+            0.02652258286252618,
+            0.02662450005300343,
+            0.026289332890883088,
+            0.02717099990695715,
+            0.026572207920253277,
+            0.026600833982229233,
+            0.026160750072449446
+          ],
+          "n64": [
+            0.030509750125929713,
+            0.030398624949157238,
+            0.030493958154693246,
+            0.03055708296597004,
+            0.032738792011514306,
+            0.032276750076562166,
+            0.0328301670961082,
+            0.032258500112220645,
+            0.03279766603372991,
+            0.03278062492609024,
+            0.032319749938324094,
+            0.03267712495289743
+          ]
+        },
+        "median_seconds": {
+          "baseline": 0.027897521038539708,
+          "m32": 0.026405957876704633,
+          "n64": 0.03229825000744313
+        },
+        "speedup": {
+          "baseline": 1.0,
+          "m32": 1.0564858570478495,
+          "n64": 0.8637471389970269
+        },
+        "capture_file": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/baseline-state-expert-b/expert-0.safetensors",
+        "paired_round_speedup_median": {
+          "baseline": 1.0,
+          "m32": 1.0634286301842382,
+          "n64": 0.8663963050551831
+        },
+        "paired_round_faster_count": {
+          "baseline": 0,
+          "m32": 12,
+          "n64": 0
+        }
+      },
+      {
+        "x_shape": [
+          40960,
+          1,
+          640
+        ],
+        "weight_shape": [
+          512,
+          2560,
+          160
+        ],
+        "dtype": "mlx.core.bfloat16",
+        "metadata": {
+          "bits": 8,
+          "group_size": 64,
+          "mode": "affine",
+          "sorted_indices": true
+        },
+        "exact_checks": {
+          "m32": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          },
+          "n64": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          }
+        },
+        "samples_seconds": {
+          "baseline": [
+            0.01353083411231637,
+            0.013519207946956158,
+            0.013539500068873167,
+            0.013529750052839518,
+            0.013543250039219856,
+            0.013500750064849854,
+            0.013490082928910851,
+            0.013539917068555951,
+            0.013505500042811036,
+            0.013474749866873026,
+            0.013481125002726912,
+            0.0134683339856565
+          ],
+          "m32": [
+            0.012655500089749694,
+            0.01259175012819469,
+            0.012633749982342124,
+            0.012641082983464003,
+            0.012618749868124723,
+            0.01258891704492271,
+            0.012633749982342124,
+            0.012544000055640936,
+            0.012630250072106719,
+            0.012611458078026772,
+            0.012617832981050014,
+            0.012656584149226546
+          ],
+          "n64": [
+            0.01498129079118371,
+            0.01482604187913239,
+            0.014823999954387546,
+            0.014924040995538235,
+            0.014797542011365294,
+            0.014797250041738153,
+            0.014839333947747946,
+            0.014771959045901895,
+            0.014895665924996138,
+            0.014789917040616274,
+            0.014865500153973699,
+            0.01480079093016684
+          ]
+        },
+        "median_seconds": {
+          "baseline": 0.013512353994883597,
+          "m32": 0.012624499970115721,
+          "n64": 0.014825020916759968
+        },
+        "speedup": {
+          "baseline": 1.0,
+          "m32": 1.070327856696865,
+          "n64": 0.9114559817995012
+        },
+        "capture_file": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/baseline-state-expert-b/expert-1.safetensors",
+        "paired_round_speedup_median": {
+          "baseline": 1.0,
+          "m32": 1.0697989144022324,
+          "n64": 0.9105253539450598
+        },
+        "paired_round_faster_count": {
+          "baseline": 0,
+          "m32": 12,
+          "n64": 0
+        }
+      }
+    ]
+  },
+  "q4_replay": {
+    "mlx_version": "0.32.4",
+    "source": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/worktrees/expert",
+    "candidate_count": 2,
+    "serving_integration": false,
+    "cases": [
+      {
+        "x_shape": [
+          40960,
+          1,
+          2560
+        ],
+        "weight_shape": [
+          512,
+          1280,
+          320
+        ],
+        "dtype": "mlx.core.bfloat16",
+        "metadata": {
+          "bits": 4,
+          "group_size": 64,
+          "mode": "affine",
+          "sorted_indices": true
+        },
+        "exact_checks": {
+          "m32": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          },
+          "n64": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          }
+        },
+        "samples_seconds": {
+          "baseline": [
+            0.02461429196409881,
+            0.023978332988917828,
+            0.024482915876433253,
+            0.024617874994874,
+            0.024511790834367275,
+            0.024730917066335678,
+            0.024454499827697873,
+            0.0267945418599993,
+            0.02532520890235901,
+            0.02458849991671741,
+            0.024699209025129676,
+            0.023974667070433497
+          ],
+          "m32": [
+            0.024600875098258257,
+            0.024464832851663232,
+            0.02454774989746511,
+            0.024206625064834952,
+            0.02436212496832013,
+            0.024346542079001665,
+            0.02505216607823968,
+            0.02578633278608322,
+            0.02551183314062655,
+            0.024715166073292494,
+            0.024540292099118233,
+            0.02447816706262529
+          ],
+          "n64": [
+            0.02602462493814528,
+            0.025371750118210912,
+            0.02600320801138878,
+            0.025831582956016064,
+            0.025921707972884178,
+            0.0255325420293957,
+            0.026976041961461306,
+            0.026880291989073157,
+            0.0273541659116745,
+            0.02605670806951821,
+            0.025974499993026257,
+            0.025418334174901247
+          ]
+        },
+        "median_seconds": {
+          "baseline": 0.02460139594040811,
+          "m32": 0.02454402099829167,
+          "n64": 0.025988854002207518
+        },
+        "speedup": {
+          "baseline": 1.0,
+          "m32": 1.002337634168437,
+          "n64": 0.9466133419472227
+        },
+        "capture_file": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/prepared-state-q4/expert-0.safetensors",
+        "paired_round_speedup_median": {
+          "baseline": 1.0,
+          "m32": 0.9989521212959267,
+          "n64": 0.9453443042905241
+        },
+        "paired_round_faster_count": {
+          "baseline": 0,
+          "m32": 6,
+          "n64": 0
+        }
+      },
+      {
+        "x_shape": [
+          40960,
+          1,
+          640
+        ],
+        "weight_shape": [
+          512,
+          2560,
+          80
+        ],
+        "dtype": "mlx.core.bfloat16",
+        "metadata": {
+          "bits": 4,
+          "group_size": 64,
+          "mode": "affine",
+          "sorted_indices": true
+        },
+        "exact_checks": {
+          "m32": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          },
+          "n64": {
+            "bits_equal": true,
+            "max_abs_error": 0.0
+          }
+        },
+        "samples_seconds": {
+          "baseline": [
+            0.013635833049193025,
+            0.013585417065769434,
+            0.012964042136445642,
+            0.013431709026917815,
+            0.013587165856733918,
+            0.01348562492057681,
+            0.013517375104129314,
+            0.01364087499678135,
+            0.013623540988191962,
+            0.013475666986778378,
+            0.013944166945293546,
+            0.013524416834115982
+          ],
+          "m32": [
+            0.013034167001023889,
+            0.012896958040073514,
+            0.013091000029817224,
+            0.012981834122911096,
+            0.013033292023465037,
+            0.013140708906576037,
+            0.013025207910686731,
+            0.012953750090673566,
+            0.01249954104423523,
+            0.013080624863505363,
+            0.012974249897524714,
+            0.013059458928182721
+          ],
+          "n64": [
+            0.01308562490157783,
+            0.013072083937004209,
+            0.013033624971285462,
+            0.013086749939247966,
+            0.012796333059668541,
+            0.01319495914503932,
+            0.01248412486165762,
+            0.01311954203993082,
+            0.013088166946545243,
+            0.013009667163714767,
+            0.013009749818593264,
+            0.012996250065043569
+          ]
+        },
+        "median_seconds": {
+          "baseline": 0.013554916949942708,
+          "m32": 0.013029249967075884,
+          "n64": 0.013052854454144835
+        },
+        "speedup": {
+          "baseline": 1.0,
+          "m32": 1.040345145284276,
+          "n64": 1.0384638086298776
+        },
+        "capture_file": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/prepared-state-q4/expert-1.safetensors",
+        "paired_round_speedup_median": {
+          "baseline": 1.0,
+          "m32": 1.0401412969592432,
+          "n64": 1.040188533283592
+        },
+        "paired_round_faster_count": {
+          "baseline": 0,
+          "m32": 11,
+          "n64": 11
+        }
+      }
+    ],
+    "swap_guard": {
+      "baseline_bytes": 216306057216,
+      "latest_bytes": 216306057216,
+      "limit_bytes": 1073741824
+    }
+  },
+  "diagnostic_runtime_manifest": {
+    "recorded_utc": "2026-11-05T07:50:11.372230+00:00",
+    "installed_source_commit": "0713dc8ea7d8e4a5b269a10cdbea4706a0e68240",
+    "mlx_version": "0.32.4",
+    "method": "server-only ctypes.CDLL Objective-C runtime method replacement, native Metal GPUStartTime/GPUEndTime, actual MTLFunction.name",
+    "diagnostic_only": true,
+    "buffer_policy": "MLX_MAX_OPS_PER_BUFFER=0",
+    "shader_changes": false,
+    "host_mlx_rebuilt_used": false,
+    "compiler": "Apple clang version 21.0.0 (clang-2100.4.1.1)\nTarget: arm64-apple-darwin27.0.0\nThread model: posix\nInstalledDir: /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin\n",
+    "compiler_flags": [
+      "-std=c++17",
+      "-fobjc-arc",
+      "-dynamiclib",
+      "-framework",
+      "Foundation",
+      "-framework",
+      "Metal"
+    ],
+    "files": {
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/diagnostic/metal_profile.dylib": {
+        "sha256": "adb851fd9c48ce20d8c49d0160410723f0c9a09cd6fc5bd19fb118f5d6ebab0c",
+        "bytes": 56208
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/worktrees/expert/scripts/metal_profile_timestamps.mm": {
+        "sha256": "c0bdb33027e6f293eb9502eb6c662d68db9b7c55d09c1b4b7c01213708b2dfc9",
+        "bytes": 5550
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/worktrees/expert/scripts/expert_prefill_profile.py": {
+        "sha256": "8c91541002f8f1d49cacc7024499903378434a5395b5b0453790cb79d8c86297",
+        "bytes": 4821
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/worktrees/expert/scripts/analyse_metal_profile.py": {
+        "sha256": "71a2cdf4486d23e3bafa48ba1e00ad84c999bbcfa9a24909034031bed63b79ee",
+        "bytes": 2306
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/runtime/omlx-0.7.3-m4-max-r2-sealed-site/mlx/core.cpython-312-darwin.so": {
+        "sha256": "033602300fe065cef095911690ce64f50b93efe25383fe575df10ab9d181260d",
+        "bytes": 1662280
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/runtime/omlx-0.7.3-m4-max-r2-sealed-site/mlx/lib/libmlx.dylib": {
+        "sha256": "d8c9393d584e781393c3effccfccd8ba85ad0c70264edaf9f897dca9875375c6",
+        "bytes": 21720704
+      },
+      "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/runtime/omlx-0.7.3-m4-max-r2-sealed-site/mlx/lib/mlx.metallib": {
+        "sha256": "c6d7a3facb83568f6e4cb2cf4a8c736ee29302571a48343cb9a3a4d1cd3e3893",
+        "bytes": 214156448
+      }
+    }
+  },
+  "final_tool_sha256": {
+    "scripts/metal_profile_timestamps.mm": "c0bdb33027e6f293eb9502eb6c662d68db9b7c55d09c1b4b7c01213708b2dfc9",
+    "scripts/expert_prefill_profile.py": "f803a73a7a5d60f26a43ee3a2a971b8e5a6837465c792974cf171890e2732273",
+    "scripts/expert_prefill_tiles.py": "7bacb922d908af8f4c49fe0a323515f8529e68dec249472ec89b0f053a7ea817",
+    "scripts/replay_expert_prefill_tiles.py": "887ac5bcfdd8955bfb508f1143476e10cfd7bba3adfa69cb5066c3e79ebc316f",
+    "scripts/analyse_metal_profile.py": "71a2cdf4486d23e3bafa48ba1e00ad84c999bbcfa9a24909034031bed63b79ee"
+  },
+  "limits": [
+    "Native intervals overlap; mixed kernel groups kept intact. No exclusive GPU-percentage claim.",
+    "Primitive-isolated diagnostic scheduling is not the unchanged serving policy.",
+    "Q8/Q4 timing uses real captured inputs and normal buffer policy, 12 interleaved rounds per operation.",
+    "Q8 replay predates dedicated replay swap sampling; vm_stat after replay showed Swapouts13202274, same host counter as the surrounding successful capture. Q4 replay explicitly sampled the 1GiB cumulative guard with zero writes.",
+    "No candidate whole-model TTFT or cache/rollback/continuation qualification was run because no candidate was retained.",
+    "Captured tensors, private keys, native binaries and GPU capture bundles are deliberately excluded."
+  ]
+}
