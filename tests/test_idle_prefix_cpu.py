@@ -6,13 +6,15 @@ import struct
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts')]
 
-from omlx.idle_prefix import canonical_next_turn_prefix
+from omlx.idle_prefix import aligned_next_turn_prefix, canonical_next_turn_prefix
 from idle_state_probe import _different
 from compare_idle_audits import load_npy, logical_text_positions
+import prepare_idle_prefix
 
 
 class Renderer:
@@ -88,6 +90,50 @@ class IdlePrefixGuards(unittest.TestCase):
             path = Path(folder) / 'row.npy'
             path.write_bytes(data)
             self.assertEqual(list(load_npy(path)), [1.5, -2])
+
+    def test_aligned_prefix_and_non_roundtrip_refusal(self):
+        class BoundaryRenderer(Renderer):
+            def prepare_chat_prompt(self, messages, **kwargs):
+                if kwargs['add_generation_prompt']:
+                    return 'old', [1, 2, 3]
+                return 'x'*5000 + '<|im_start|>user\n<|im_end|>\n', []
+
+            def decode(self, ids, **kwargs):
+                return bytes(ids).decode()
+
+        engine = BoundaryRenderer()
+        history = [{'role': 'user', 'content': 'question'}, {'role': 'assistant', 'content': 'answer'}]
+        text, ids, decision = aligned_next_turn_prefix(engine, history)
+        self.assertEqual(len(ids), 4096)
+        self.assertEqual(text, 'x'*4096)
+        self.assertTrue(decision['roundtrip_exact'])
+        engine.decode = lambda *a, **k: 'wrong'
+        text, ids, decision = aligned_next_turn_prefix(engine, history)
+        self.assertIsNone(ids)
+        self.assertEqual(decision['skipped_reason'], 'boundary_not_roundtrip_exact')
+
+    def test_old_prompt_not_advanced_is_skipped(self):
+        class ShortRenderer(Renderer):
+            def prepare_chat_prompt(self, messages, **kwargs):
+                if kwargs['add_generation_prompt']:
+                    return 'old', list(range(4500))
+                return 'x'*5000 + '<|im_start|>user\n<|im_end|>\n', []
+
+        history = [{'role': 'user', 'content': 'question'}, {'role': 'assistant', 'content': 'answer'}]
+        _, ids, decision = aligned_next_turn_prefix(ShortRenderer(), history)
+        self.assertIsNone(ids)
+        self.assertEqual(decision['skipped_reason'], 'boundary_does_not_advance_previous_prompt')
+
+    def test_boundary_skip_never_reads_key_or_contacts_server(self):
+        history = [{'role': 'user', 'content': 'question'}, {'role': 'assistant', 'content': 'answer'}]
+        with patch.dict('os.environ', {'QWEN_TRIAL_IDLE_PREFIX': '1', 'QWEN_TRIAL_IDLE_BOUNDARY': '1'}), \
+             patch.object(prepare_idle_prefix, '_renderer', return_value=Renderer()), \
+             patch.object(prepare_idle_prefix.urllib.request, 'build_opener', side_effect=AssertionError('network')):
+            result = prepare_idle_prefix.prepare_idle_prefix(
+                history, 'http://127.0.0.1:8011/v1', '/nonexistent-idle-cpu-key',
+                chat_template_kwargs={'preserve_thinking': False})
+        self.assertFalse(result['enabled'])
+        self.assertEqual(result['warm_request_s'], 0.0)
 
 
 if __name__ == '__main__':

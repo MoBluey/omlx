@@ -142,10 +142,7 @@ def install():
 
     Scheduler._build_sampler_and_processors = sampler_for
 
-    tail = Scheduler._emit_prefill_tail_snapshot
-
-    @wraps(tail)
-    def capture(self, request, prompt_cache, total_tokens):
+    def capture_at(self, request, prompt_cache, total_tokens, kind):
         # Capture every layer, including sliceable KV that normal boundary
         # snapshots replace with placeholders. PLE ArraysCache slots2/3 and
         # QSA index keys/position IDs are included through their .state.
@@ -153,8 +150,23 @@ def install():
             state = cache_state(prompt_cache)
         key = (total_tokens, _token_digest(request.prompt_token_ids[:total_tokens]))
         captures[key] = (request.request_id, state)
-        record({'kind': 'tail_capture', 'request_id': request.request_id,
+        record({'kind': kind, 'request_id': request.request_id,
                 'tokens': total_tokens, 'prefix_sha256': key[1], 'state': state})
+
+    boundary = Scheduler._emit_prefill_boundary_snapshot
+
+    @wraps(boundary)
+    def capture_boundary(self, request, prompt_cache, total_tokens):
+        capture_at(self, request, prompt_cache, total_tokens, 'boundary_capture')
+        return boundary(self, request, prompt_cache, total_tokens)
+
+    Scheduler._emit_prefill_boundary_snapshot = capture_boundary
+    tail = Scheduler._emit_prefill_tail_snapshot
+
+    @wraps(tail)
+    def capture(self, request, prompt_cache, total_tokens):
+        if total_tokens % self.config.paged_cache_block_size:
+            capture_at(self, request, prompt_cache, total_tokens, 'tail_capture')
         return tail(self, request, prompt_cache, total_tokens)
 
     Scheduler._emit_prefill_tail_snapshot = capture

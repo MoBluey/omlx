@@ -2925,6 +2925,13 @@ class Scheduler:
             with _mx_buffer_access_lock:
                 with self._phase_timer("store_cache_worker_sync"):
                     _safe_sync_stream(self._stream)
+                if self._idle_preparation_store_cancelled(request_id):
+                    table = (self.paged_cache_manager.get_block_table(request_id)
+                             if self.paged_cache_manager is not None else None)
+                    if table is not None:
+                        self.paged_cache_manager.release_for_eviction(table.block_ids)
+                    self.block_aware_cache.clear_request_entry(request_id)
+                    return
                 store_tail_terminal = getattr(
                     intermediate_snapshots, "tail_terminal_token_count", None
                 ) == len(token_sequence_to_store)
@@ -4628,6 +4635,8 @@ class Scheduler:
 
             # Keep token and embedding slices aligned at the final prefill chunk.
             n_to_process = min(n_to_process, remaining)
+            if getattr(request, 'idle_preparation_limit', 0) and n_to_process != remaining:
+                raise RuntimeError('Idle preparation would require multiple prefill chunks')
             if getattr(request, "benchmark_trace", False):
                 request.benchmark_prefill_chunks.append(int(n_to_process))
                 request.benchmark_requested_steps.append(int(prefill_step_size))
@@ -4786,7 +4795,9 @@ class Scheduler:
                 self._on_prompt_progress([(uid, processed_tokens, total_length)])
 
             # Boundary snapshot emission
-            if boundary_enabled:
+            idle_cancelled = bool(getattr(request, 'idle_preparation_limit', 0)
+                                  and request.request_id in self._pending_abort_ids)
+            if boundary_enabled and not idle_cancelled:
                 total_tokens = base_size + processed_tokens
                 if should_emit_prefill_boundary(
                     total_tokens=total_tokens,
@@ -4815,7 +4826,8 @@ class Scheduler:
             abort_uids = self._check_pending_aborts_for_uids(
                 [uid] if uid is not None else []
             )
-            if abort_uids:
+            if abort_uids or (getattr(request, 'idle_preparation_limit', 0)
+                              and request.request_id in self._pending_abort_ids):
                 logger.info(
                     f"Prefill interrupted at {processed_tokens}/"
                     f"{total_length} tokens: "
@@ -10992,6 +11004,10 @@ class Scheduler:
         """
         if request.request_id in self.requests:
             raise ValueError(f"Request {request.request_id} already exists")
+        if getattr(request, 'idle_preparation_limit', 0) and (
+            self.waiting or self.running or self.prefilling or self._admission_paused
+        ):
+            raise RuntimeError('Idle preparation skipped while foreground or pressure is active')
 
         # Cap the waiting queue so client-side polling can't accumulate
         # unbounded work and the scheduler can apply backpressure via 503.
@@ -11861,6 +11877,12 @@ class Scheduler:
         Returns:
             True (abort is always enqueued)
         """
+        request = self.requests.get(request_id)
+        if getattr(request, 'idle_preparation_limit', 0):
+            # Metadata only, like the pending-id flag below. This persists
+            # across a late cancel while completion-store work is queued.
+            request.skip_cache_store = True
+            keep_cache = False
         if keep_cache:
             self._abort_keep_cache_ids.add(request_id)
         self._pending_abort_ids.add(request_id)
@@ -12172,6 +12194,7 @@ class Scheduler:
         """Whether a client cancel stores the request's computed prefix."""
         return (
             self.block_aware_cache is not None
+            and not getattr(request, 'idle_preparation_limit', 0)
             and not self._admission_paused
             and not getattr(request, "skip_cache_store", False)
             and request.specprefill_indices is None
@@ -12922,6 +12945,28 @@ class Scheduler:
             limit_bytes=int(cap),
         )
 
+    def _idle_preparation_skip_reason(self, request: Request, tokens: list[int]) -> str | None:
+        """Refuse background work unless one small existing-boundary chunk fits."""
+        limit = getattr(request, 'idle_preparation_limit', 0)
+        if not limit:
+            return None
+        if (self._admission_paused or self.waiting or self.running or self.prefilling
+                or request.request_id in self._pending_abort_ids or self._decode_contention()):
+            return 'foreground_or_pressure'
+        uncached = len(tokens)-1
+        if (limit > 512 or request.cached_tokens <= 0 or not 0 < uncached <= limit
+                or len(tokens) > self.config.prefill_step_size):
+            return 'uncached_span_or_chunk_limit'
+        if (self.config.paged_cache_block_size != 4096
+                or (len(request.prompt_token_ids)-1) % 4096):
+            return 'unsupported_boundary'
+        return None
+
+    def _idle_preparation_store_cancelled(self, request_id: str) -> bool:
+        request = getattr(self, 'requests', {}).get(request_id)
+        return bool(getattr(request, 'idle_preparation_limit', 0)
+                    and getattr(request, 'skip_cache_store', False))
+
     def _schedule_waiting(
         self,
     ) -> tuple[list["Request"], list[RequestOutput]]:
@@ -13113,6 +13158,14 @@ class Scheduler:
                 tokens_to_process = request.prompt_token_ids
                 # Indices were scored against the rejected cache's cached_tokens.
                 request.specprefill_indices = None
+
+            idle_reason = self._idle_preparation_skip_reason(request, tokens_to_process)
+            if idle_reason is not None:
+                self._do_abort_request(request.request_id, allow_cache_store=False)
+                rejected_outputs.append(RequestOutput(
+                    request_id=request.request_id, finished=True,
+                    finish_reason='abort', error='Idle preparation skipped: ' + idle_reason))
+                continue
 
             # SpecPrefill requests must be alone in the batch (RoPE patching
             # affects the entire model). Also block scheduling if another
@@ -14451,6 +14504,8 @@ class Scheduler:
                                     request_id,
                                 )
 
+                            if self._idle_preparation_store_cancelled(request_id):
+                                raise _BoundaryStoreUnavailable
                             if self._store_cache_executor is not None:
                                 # Hand host memcpy and disk write to the
                                 # background executor after the owner thread
@@ -14531,7 +14586,9 @@ class Scheduler:
                             uncached_prompt_tokens = max(
                                 0, prompt_tokens - cached_tokens
                             )
-                            reason = "boundary_snapshot_unavailable"
+                            reason = ('idle_preparation_cancelled'
+                                      if self._idle_preparation_store_cancelled(request_id)
+                                      else 'boundary_snapshot_unavailable')
                             # Prefill retries can advance cached_tokens beyond the restored blocks.
                             if (
                                 available_boundaries == 0

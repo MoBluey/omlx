@@ -49,6 +49,7 @@ import os
 import shutil
 import time
 import uuid
+from . import idle_preparation as _idle_preparation
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from dataclasses import asdict, dataclass, field
@@ -1681,6 +1682,8 @@ class _LLMEngineLease:
     model_id: str | None = None
     released: bool = False
     gpu_power_w: int | None = None
+    idle_engine: object | None = None
+    idle_ticket: int | None = None
 
     def limit_gpu_power(self, watts: int | None) -> None:
         limiter = _server_state.gpu_power_limiter
@@ -1698,8 +1701,13 @@ class _LLMEngineLease:
             if self.gpu_power_w is not None and limiter is not None:
                 limiter.release(self.gpu_power_w)
         finally:
-            if self.model_id is not None:
-                await get_engine_pool().release_engine(self.model_id)
+            try:
+                if self.model_id is not None:
+                    await get_engine_pool().release_engine(self.model_id)
+            finally:
+                if self.idle_engine is not None:
+                    _idle_preparation.released(self.idle_engine, self.idle_ticket)
+                    self.idle_engine = None
 
     def abort_requested(self) -> bool:
         return self.abort_reason() is not None
@@ -1769,7 +1777,9 @@ async def get_engine_for_model(
         HTTPException: If model not found or memory error
     """
     if lease is None:
-        return await get_engine(model, EngineType.LLM)
+        engine = await get_engine(model, EngineType.LLM)
+        await _idle_preparation.foreground(engine)
+        return engine
 
     leased: list[str] = []
     engine = await get_engine(
@@ -1780,6 +1790,8 @@ async def get_engine_for_model(
     )
     if leased:
         lease.model_id = leased[0]
+    lease.idle_engine = engine
+    lease.idle_ticket = await _idle_preparation.foreground(engine, track=True)
     return engine
 
 
@@ -5051,6 +5063,7 @@ async def create_chat_completion(
     try:
         load_start = time.perf_counter()
         engine = await get_engine_for_model(request.model, lease=lease)
+        idle_epoch = lease.idle_ticket
         model_load_duration = time.perf_counter() - load_start
         lease.limit_gpu_power(_resolve_gpu_power_limit(request, request.model))
 
@@ -5303,7 +5316,7 @@ async def create_chat_completion(
                 _release_after_stream(
                     _with_request_disconnect_abort(
                         _with_sse_keepalive(
-                            stream_chat_completion(
+                            _idle_preparation.observe_stream(stream_chat_completion(
                                 engine,
                                 messages,
                                 request,
@@ -5311,7 +5324,7 @@ async def create_chat_completion(
                                 resolved_model=resolved_model,
                                 response_id=response_id,
                                 **chat_kwargs,
-                            ),
+                            ), engine, messages, chat_kwargs, idle_epoch),
                             http_request=http_request,
                             keepalive_chunk=keepalive,
                         ),
@@ -5450,7 +5463,7 @@ async def create_chat_completion(
                 else 0
             )
 
-            return ChatCompletionResponse(
+            response_json = ChatCompletionResponse(
                 model=request.model,
                 choices=[
                     ChatCompletionChoice(
@@ -5495,6 +5508,8 @@ async def create_chat_completion(
                     ),
                 ),
             ).model_dump_json(exclude_none=True)
+            return _idle_preparation.observe_json(
+                response_json, engine, messages, chat_kwargs, idle_epoch)
 
         json_headers = {_REQUEST_ID_HEADER: inference_request_id}
         if response_format_warning:

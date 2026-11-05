@@ -61,12 +61,13 @@ def restore_summary(events):
     summary = []
     for event in events:
         if event['kind'] == 'trunk_restore':
-            capture = next(x for x in events if x['kind'] == 'tail_capture'
+            capture = next(x for x in events if x['kind'] in ('tail_capture', 'boundary_capture')
                 and x['request_id'] == event['capture_request_id'] and x['tokens'] == event['tokens'])
             a, a_positions = logical_text_positions(capture['state'], event['tokens'])
             b, b_positions = logical_text_positions(event['state'], event['tokens'])
             differences = _different(a, b)
             summary.append({'kind': event['kind'], 'tokens': event['tokens'],
+                'capture_kind': capture['kind'],
                 'prefix_sha256': event['prefix_sha256'], 'raw_exact': event['exact'],
                 'logical_exact': not differences, 'logical_differences': differences,
                 'verified_position_layers': a_positions if a_positions == b_positions else []})

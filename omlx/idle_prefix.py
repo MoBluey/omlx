@@ -32,3 +32,33 @@ def canonical_next_turn_prefix(engine, history, *, tools=None, chat_template_kwa
         raise ValueError("unsupported canonical next-user template suffix")
     prefix = text[:-len(_EMPTY_USER_SUFFIX)]
     return prefix, list(engine.tokenizer.encode(prefix))
+
+
+def aligned_next_turn_prefix(engine, history, *, tools=None, chat_template_kwargs=None):
+    """Select only a pre-existing 4096-token boundary beyond the old prompt.
+
+    Return a disabled decision when the known answer reaches no new boundary
+    or an arbitrary BPE boundary cannot round-trip through raw prompt text.
+    """
+    _, canonical_ids = canonical_next_turn_prefix(
+        engine, history, tools=tools, chat_template_kwargs=chat_template_kwargs,
+    )
+    _, previous_ids = engine.prepare_chat_prompt(
+        deepcopy(history[:-1]), tools=tools,
+        chat_template_kwargs=chat_template_kwargs, is_partial=False,
+        add_generation_prompt=True,
+    )
+    boundary = (len(canonical_ids) // 4096) * 4096
+    decision = {'variant': 'aligned_boundary',
+                'canonical_prefix_tokens': len(canonical_ids),
+                'chosen_boundary': boundary,
+                'previous_prompt_tokens': len(previous_ids)}
+    if boundary <= len(previous_ids):
+        return None, None, {**decision, 'skipped_reason': 'boundary_does_not_advance_previous_prompt'}
+    ids = canonical_ids[:boundary]
+    text = engine.tokenizer.decode(
+        ids, skip_special_tokens=False, clean_up_tokenization_spaces=False,
+    )
+    if list(engine.tokenizer.encode(text)) != ids:
+        return None, None, {**decision, 'skipped_reason': 'boundary_not_roundtrip_exact'}
+    return text, ids, {**decision, 'roundtrip_exact': True}

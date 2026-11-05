@@ -1,0 +1,578 @@
+{
+  "baseline": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/boundary-baseline-state",
+  "prepared": "/Users/mohameddarwiche/work/p2pit/development/QwenLocal/state/benchmarks/qwen-idle-expert-20261105/boundary-prepared-state",
+  "baseline_event_counts": {
+    "installed": 1,
+    "tail_capture": 3,
+    "final_prefill": 4,
+    "first_sample": 4,
+    "head_capture": 3,
+    "head_restore": 2,
+    "trunk_restore": 2,
+    "boundary_capture": 7
+  },
+  "prepared_event_counts": {
+    "installed": 1,
+    "tail_capture": 3,
+    "final_prefill": 5,
+    "first_sample": 5,
+    "head_capture": 4,
+    "head_restore": 3,
+    "trunk_restore": 3,
+    "boundary_capture": 7
+  },
+  "baseline_restores": [
+    {
+      "kind": "head_restore",
+      "tokens": 6,
+      "prefix_sha256": "f51639139d6e363fdd9030aab424b093c0ce414fd376f672abfd54c4779a68d1",
+      "sidecar_found": true,
+      "restored": true,
+      "exact": true,
+      "positions_exact": true,
+      "folded": 5,
+      "expected_offset": 6
+    },
+    {
+      "kind": "trunk_restore",
+      "tokens": 6,
+      "capture_kind": "tail_capture",
+      "prefix_sha256": "f51639139d6e363fdd9030aab424b093c0ce414fd376f672abfd54c4779a68d1",
+      "raw_exact": false,
+      "logical_exact": true,
+      "logical_differences": [],
+      "verified_position_layers": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39,
+        43,
+        47
+      ]
+    },
+    {
+      "kind": "head_restore",
+      "tokens": 28275,
+      "prefix_sha256": "edd48c358e85eb4354672ac1c06858e31d5485fe1caf7ee7004b62874df5a4b0",
+      "sidecar_found": true,
+      "restored": true,
+      "exact": true,
+      "positions_exact": true,
+      "folded": 28274,
+      "expected_offset": 28275
+    },
+    {
+      "kind": "trunk_restore",
+      "tokens": 28275,
+      "capture_kind": "tail_capture",
+      "prefix_sha256": "edd48c358e85eb4354672ac1c06858e31d5485fe1caf7ee7004b62874df5a4b0",
+      "raw_exact": false,
+      "logical_exact": true,
+      "logical_differences": [],
+      "verified_position_layers": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39,
+        43,
+        47
+      ]
+    }
+  ],
+  "prepared_restores": [
+    {
+      "kind": "head_restore",
+      "tokens": 6,
+      "prefix_sha256": "f51639139d6e363fdd9030aab424b093c0ce414fd376f672abfd54c4779a68d1",
+      "sidecar_found": true,
+      "restored": true,
+      "exact": true,
+      "positions_exact": true,
+      "folded": 5,
+      "expected_offset": 6
+    },
+    {
+      "kind": "trunk_restore",
+      "tokens": 6,
+      "capture_kind": "tail_capture",
+      "prefix_sha256": "f51639139d6e363fdd9030aab424b093c0ce414fd376f672abfd54c4779a68d1",
+      "raw_exact": false,
+      "logical_exact": true,
+      "logical_differences": [],
+      "verified_position_layers": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39,
+        43,
+        47
+      ]
+    },
+    {
+      "kind": "head_restore",
+      "tokens": 28275,
+      "prefix_sha256": "edd48c358e85eb4354672ac1c06858e31d5485fe1caf7ee7004b62874df5a4b0",
+      "sidecar_found": true,
+      "restored": true,
+      "exact": true,
+      "positions_exact": true,
+      "folded": 28274,
+      "expected_offset": 28275
+    },
+    {
+      "kind": "trunk_restore",
+      "tokens": 28275,
+      "capture_kind": "tail_capture",
+      "prefix_sha256": "edd48c358e85eb4354672ac1c06858e31d5485fe1caf7ee7004b62874df5a4b0",
+      "raw_exact": false,
+      "logical_exact": true,
+      "logical_differences": [],
+      "verified_position_layers": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39,
+        43,
+        47
+      ]
+    },
+    {
+      "kind": "head_restore",
+      "tokens": 28672,
+      "prefix_sha256": "6a9049127bcd5d20595bdfcb8747c6cd8a9dcf2e55de60d78a1ebf71e33d3014",
+      "sidecar_found": true,
+      "restored": true,
+      "exact": true,
+      "positions_exact": true,
+      "folded": 28671,
+      "expected_offset": 28672
+    },
+    {
+      "kind": "trunk_restore",
+      "tokens": 28672,
+      "capture_kind": "boundary_capture",
+      "prefix_sha256": "6a9049127bcd5d20595bdfcb8747c6cd8a9dcf2e55de60d78a1ebf71e33d3014",
+      "raw_exact": true,
+      "logical_exact": true,
+      "logical_differences": [],
+      "verified_position_layers": [
+        3,
+        7,
+        11,
+        15,
+        19,
+        23,
+        27,
+        31,
+        35,
+        39,
+        43,
+        47
+      ]
+    }
+  ],
+  "paired_real_prompts": [
+    {
+      "prompt_sha256": "83345f4d847dac31fb4fb36f8f597ff569a59638e8d4268520182611acafe70d",
+      "prompt_tokens": 13,
+      "baseline_cached": 6,
+      "prepared_cached": 6,
+      "prefilled_tokens_equal": true,
+      "last_token_equal": true,
+      "trunk_exact": true,
+      "trunk_differences": [],
+      "changed_layers": [],
+      "changed_layer_types": {},
+      "head_exact": true,
+      "head_differences": [],
+      "baseline_head_positions": {
+        "folded": 11,
+        "expected_offset": 12,
+        "valid": true
+      },
+      "prepared_head_positions": {
+        "folded": 11,
+        "expected_offset": 12,
+        "valid": true
+      },
+      "sampling_logprobs_exact": true,
+      "logprobs": {
+        "elements": 248320,
+        "equal": 248320,
+        "max_abs_delta": 0.0,
+        "mean_abs_delta": 0.0,
+        "rmse": 0.0,
+        "nonfinite_mismatches": 0,
+        "baseline_top10": [
+          [
+            9419,
+            -0.5
+          ],
+          [
+            12675,
+            -1.0
+          ],
+          [
+            18103,
+            -7.0
+          ],
+          [
+            109266,
+            -8.4375
+          ],
+          [
+            21251,
+            -9.0
+          ],
+          [
+            760,
+            -9.0625
+          ],
+          [
+            40,
+            -9.25
+          ],
+          [
+            5834,
+            -9.375
+          ],
+          [
+            23165,
+            -9.375
+          ],
+          [
+            14556,
+            -9.4375
+          ]
+        ],
+        "prepared_top10": [
+          [
+            9419,
+            -0.5
+          ],
+          [
+            12675,
+            -1.0
+          ],
+          [
+            18103,
+            -7.0
+          ],
+          [
+            109266,
+            -8.4375
+          ],
+          [
+            21251,
+            -9.0
+          ],
+          [
+            760,
+            -9.0625
+          ],
+          [
+            40,
+            -9.25
+          ],
+          [
+            5834,
+            -9.375
+          ],
+          [
+            23165,
+            -9.375
+          ],
+          [
+            14556,
+            -9.4375
+          ]
+        ]
+      },
+      "first_sample_token_baseline": [
+        9419
+      ],
+      "first_sample_token_prepared": [
+        9419
+      ],
+      "rng_before_equal": false,
+      "rng_after_equal": false,
+      "seed_equal": true
+    },
+    {
+      "prompt_sha256": "5c107fc7820aa385d303df2736f1805971e6b4088b4c2b1e2fb7e66283285da6",
+      "prompt_tokens": 28280,
+      "baseline_cached": 0,
+      "prepared_cached": 0,
+      "prefilled_tokens_equal": true,
+      "last_token_equal": true,
+      "trunk_exact": true,
+      "trunk_differences": [],
+      "changed_layers": [],
+      "changed_layer_types": {},
+      "head_exact": true,
+      "head_differences": [],
+      "baseline_head_positions": {
+        "folded": 28278,
+        "expected_offset": 28279,
+        "valid": true
+      },
+      "prepared_head_positions": {
+        "folded": 28278,
+        "expected_offset": 28279,
+        "valid": true
+      },
+      "sampling_logprobs_exact": true,
+      "logprobs": {
+        "elements": 248320,
+        "equal": 248320,
+        "max_abs_delta": 0.0,
+        "mean_abs_delta": 0.0,
+        "rmse": 0.0,
+        "nonfinite_mismatches": 0,
+        "baseline_top10": [
+          [
+            760,
+            0.0
+          ],
+          [
+            9764,
+            -8.875
+          ],
+          [
+            1596,
+            -9.9375
+          ],
+          [
+            12,
+            -10.5
+          ],
+          [
+            16,
+            -11.0625
+          ],
+          [
+            1421,
+            -11.5625
+          ],
+          [
+            8160,
+            -11.625
+          ],
+          [
+            3758,
+            -12.25
+          ],
+          [
+            40,
+            -12.6875
+          ],
+          [
+            332,
+            -12.9375
+          ]
+        ],
+        "prepared_top10": [
+          [
+            760,
+            0.0
+          ],
+          [
+            9764,
+            -8.875
+          ],
+          [
+            1596,
+            -9.9375
+          ],
+          [
+            12,
+            -10.5
+          ],
+          [
+            16,
+            -11.0625
+          ],
+          [
+            1421,
+            -11.5625
+          ],
+          [
+            8160,
+            -11.625
+          ],
+          [
+            3758,
+            -12.25
+          ],
+          [
+            40,
+            -12.6875
+          ],
+          [
+            332,
+            -12.9375
+          ]
+        ]
+      },
+      "first_sample_token_baseline": [
+        760
+      ],
+      "first_sample_token_prepared": [
+        760
+      ],
+      "rng_before_equal": true,
+      "rng_after_equal": true,
+      "seed_equal": true
+    },
+    {
+      "prompt_sha256": "e02bfa8c53d5e2618df919ac119a1db6deb83fed8631158221adbfae3d2a3d86",
+      "prompt_tokens": 28739,
+      "baseline_cached": 28275,
+      "prepared_cached": 28672,
+      "prefilled_tokens_equal": true,
+      "last_token_equal": true,
+      "trunk_exact": true,
+      "trunk_differences": [],
+      "changed_layers": [],
+      "changed_layer_types": {},
+      "head_exact": true,
+      "head_differences": [],
+      "baseline_head_positions": {
+        "folded": 28737,
+        "expected_offset": 28738,
+        "valid": true
+      },
+      "prepared_head_positions": {
+        "folded": 28737,
+        "expected_offset": 28738,
+        "valid": true
+      },
+      "sampling_logprobs_exact": true,
+      "logprobs": {
+        "elements": 248320,
+        "equal": 248320,
+        "max_abs_delta": 0.0,
+        "mean_abs_delta": 0.0,
+        "rmse": 0.0,
+        "nonfinite_mismatches": 0,
+        "baseline_top10": [
+          [
+            760,
+            0.0
+          ],
+          [
+            1596,
+            -6.5
+          ],
+          [
+            90700,
+            -11.125
+          ],
+          [
+            1421,
+            -11.9375
+          ],
+          [
+            561,
+            -12.0
+          ],
+          [
+            9764,
+            -13.75
+          ],
+          [
+            77264,
+            -13.75
+          ],
+          [
+            248069,
+            -13.9375
+          ],
+          [
+            31248,
+            -14.0
+          ],
+          [
+            22916,
+            -14.1875
+          ]
+        ],
+        "prepared_top10": [
+          [
+            760,
+            0.0
+          ],
+          [
+            1596,
+            -6.5
+          ],
+          [
+            90700,
+            -11.125
+          ],
+          [
+            1421,
+            -11.9375
+          ],
+          [
+            561,
+            -12.0
+          ],
+          [
+            9764,
+            -13.75
+          ],
+          [
+            77264,
+            -13.75
+          ],
+          [
+            248069,
+            -13.9375
+          ],
+          [
+            31248,
+            -14.0
+          ],
+          [
+            22916,
+            -14.1875
+          ]
+        ]
+      },
+      "first_sample_token_baseline": [
+        760
+      ],
+      "first_sample_token_prepared": [
+        760
+      ],
+      "rng_before_equal": true,
+      "rng_after_equal": true,
+      "seed_equal": true
+    }
+  ]
+}

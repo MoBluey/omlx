@@ -1,0 +1,59 @@
+{
+  "model_loaded": false,
+  "rows": [
+    {
+      "phase": "short",
+      "rep": 1,
+      "session": 0,
+      "variant": "aligned_boundary",
+      "canonical_prefix_tokens": 2824,
+      "chosen_boundary": 0,
+      "previous_prompt_tokens": 2436,
+      "skipped_reason": "boundary_does_not_advance_previous_prompt",
+      "skipped": true
+    },
+    {
+      "phase": "short",
+      "rep": 2,
+      "session": 1,
+      "variant": "aligned_boundary",
+      "canonical_prefix_tokens": 2808,
+      "chosen_boundary": 0,
+      "previous_prompt_tokens": 2436,
+      "skipped_reason": "boundary_does_not_advance_previous_prompt",
+      "skipped": true
+    },
+    {
+      "phase": "long",
+      "rep": 1,
+      "session": 2,
+      "variant": "aligned_boundary",
+      "canonical_prefix_tokens": 28714,
+      "chosen_boundary": 28672,
+      "previous_prompt_tokens": 28280,
+      "roundtrip_exact": true,
+      "prefix_tokens": 28672,
+      "warm_prompt_tokens": 28673,
+      "real_prompt_tokens": 28739,
+      "remaining_tokens": 67,
+      "sentinel_exact": true,
+      "real_prefix_exact": true
+    },
+    {
+      "phase": "long",
+      "rep": 2,
+      "session": 3,
+      "variant": "aligned_boundary",
+      "canonical_prefix_tokens": 28855,
+      "chosen_boundary": 28672,
+      "previous_prompt_tokens": 28280,
+      "roundtrip_exact": true,
+      "prefix_tokens": 28672,
+      "warm_prompt_tokens": 28673,
+      "real_prompt_tokens": 28880,
+      "remaining_tokens": 208,
+      "sentinel_exact": true,
+      "real_prefix_exact": true
+    }
+  ]
+}

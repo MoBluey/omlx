@@ -53,7 +53,8 @@ def prepare_idle_prefix(history, api_base, key_path, *, chat_template_kwargs,
     forced preserve_thinking=False and merged reasoning_effort. Raw completions
     accepts strings, not token IDs; verify its exact tokenisation locally.
     """
-    if os.environ.get('QWEN_TRIAL_IDLE_PREFIX') != '1':
+    boundary_only = os.environ.get('QWEN_TRIAL_IDLE_BOUNDARY') == '1'
+    if os.environ.get('QWEN_TRIAL_IDLE_PREFIX') != '1' and not boundary_only:
         return {'enabled': False}
     started = time.perf_counter()
     parsed = urlparse(api_base)
@@ -63,12 +64,23 @@ def prepare_idle_prefix(history, api_base, key_path, *, chat_template_kwargs,
         raise ValueError('private API key path must be absolute')
     renderer = _renderer()
     tokenizer_ready = time.perf_counter()
-    from omlx.idle_prefix import canonical_next_turn_prefix
+    from omlx.idle_prefix import aligned_next_turn_prefix, canonical_next_turn_prefix
 
-    text, ids = canonical_next_turn_prefix(
-        renderer, history, tools=tools,
-        chat_template_kwargs=chat_template_kwargs,
-    )
+    if boundary_only:
+        text, ids, selection = aligned_next_turn_prefix(
+            renderer, history, tools=tools, chat_template_kwargs=chat_template_kwargs,
+        )
+        if ids is None:
+            ended = time.perf_counter()
+            return {'enabled': False, **selection, 'elapsed_s': ended-started,
+                    'tokenizer_s': tokenizer_ready-started,
+                    'render_s': ended-tokenizer_ready, 'warm_request_s': 0.0}
+    else:
+        text, ids = canonical_next_turn_prefix(
+            renderer, history, tools=tools,
+            chat_template_kwargs=chat_template_kwargs,
+        )
+        selection = {'variant': 'full_canonical', 'canonical_prefix_tokens': len(ids)}
     prompt = text + '<|im_start|>'
     warm_ids = list(renderer.tokenizer.encode(prompt))
     sentinel = list(renderer.tokenizer.encode('<|im_start|>'))
@@ -90,7 +102,7 @@ def prepare_idle_prefix(history, api_base, key_path, *, chat_template_kwargs,
     usage = body.get('usage', {})
     if usage.get('prompt_tokens') != len(warm_ids):
         raise ValueError('server raw prompt token count differs from canonical warm request')
-    return {'enabled': True, 'elapsed_s': ended-started,
+    return {'enabled': True, **selection, 'elapsed_s': ended-started,
             'tokenizer_s': tokenizer_ready-started,
             'render_s': request_started-tokenizer_ready,
             'warm_request_s': ended-request_started,
