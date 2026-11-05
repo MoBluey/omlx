@@ -8,8 +8,11 @@ serving kernel. No full-model TTFT improvement was measured or claimed.
 
 - Apple M4 Max, 128 GiB, `applegpu_g16s`; sealed source `0713dc8e`.
 - MLX 0.32.4, existing weights, BF16 activations, affine Q4/Q8 group 64.
-- Normal thinking/sampling, fixed-depth-1 MTP, admission and host-swap guards
-  stayed in place. No installation, merge or runtime library replacement.
+- Production thinking/sampling profiles stayed unchanged. The 28K-token
+  `prefill-trace` capture request overrode thinking off and maximum output to
+  64 tokens; normal-thinking TTFT screens were separate. Fixed-depth-1 MTP,
+  admission and host-swap guards stayed in place. No installation, merge or
+  runtime library replacement.
 - Context7 was unavailable. Library work used pinned installed declarations,
   installed Metal headers, MLX v0.32.4 source and its official documentation.
 
