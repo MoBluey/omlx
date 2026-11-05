@@ -24,6 +24,7 @@ whose details change every few lines).
 
 from __future__ import annotations
 
+import os
 from typing import Dict, List, Sequence
 
 import numpy as np
@@ -37,7 +38,7 @@ import numpy as np
 # cannot undo a longer verify block), so their copies stay at 7 tokens.
 MAX_COPY = 15
 _NARROW_COPY = 7
-_MAX_MATCH = 64
+_MAX_MATCH = 32 if os.environ.get("OMLX_EXPERIMENTAL_QWEN_COMBINED_MARGINAL") == "1" else 64
 _ENTER_MATCH = 12
 _MIN_COPY = 2
 _CANDIDATES = 32

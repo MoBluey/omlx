@@ -13,6 +13,20 @@ in `mlx_vlm.models.qwen4_exp.qsa_fast`:
 | `_DECODE_SELECT_REDUCED_BARRIERS_ENABLED` | `_DECODE_SELECT_REDUCED_BARRIERS_STATS['mask'/'tokens']` | stats `failures`; reduced signatures in `_DECODE_SELECT_FAILED` |
 | `_FUSED_DECODE_KV_GATHER` | `_FUSED_DECODE_KV_GATHER_CALLS` | `_FUSED_DECODE_KV_GATHER_DISABLED` |
 
+Delivery-source preparation adds one startup opt-in:
+`OMLX_EXPERIMENTAL_QWEN_COMBINED_MARGINAL=1` initialises both switches to true
+and `context_copy._MAX_MATCH` to 32. Unset and every other value keep false,
+false and 64. GDN wider projections remain the separate existing model
+setting `qwen4_gdn_decode_wide_proj`; managed activation belongs to main.
+The r3 masked/idle controls and all candidate arithmetic remain unchanged.
+This preparation does not imply final confirmation or installation approval.
+
+CPU-only configuration coverage executes the actual three assignment ASTs
+for unset, empty, `0`, `true`, `1` and space-prefixed `1`, without importing
+MLX/native libraries. All 18 control/value comparisons passed. Command:
+`python3.12 -BIS tests/test_qwen_combined_process_config.py` (absolute paths
+and the pinned Python 3.12.15 executable used below).
+
 Counters increment only when the candidate operator returns. First signatures
 are evaluated before being marked valid/proven. Later results remain lazy,
 as in the original candidates. Gather fallback and unsupported geometry do

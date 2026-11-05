@@ -75,7 +75,7 @@ def _native_causal_query_chunk(key_tokens: int) -> int:
 # Tests set _DECODE_SELECT_DISABLED to compare against the MLX ops.
 _DECODE_SELECT_DISABLED = False
 # Private trial switch: change only at an idle request boundary.
-_DECODE_SELECT_REDUCED_BARRIERS_ENABLED = False
+_DECODE_SELECT_REDUCED_BARRIERS_ENABLED = os.environ.get("OMLX_EXPERIMENTAL_QWEN_COMBINED_MARGINAL") == "1"
 _DECODE_SELECT_REDUCED_BARRIERS_STATS = {"mask": 0, "tokens": 0, "failures": 0}
 _DECODE_SELECT_THREADS = 1024
 # Keys held per thread; larger block banks keep the MLX ops.
@@ -850,7 +850,7 @@ _TOKEN_MAJOR_MIN_QUERIES = 32
 _TOKEN_MAJOR_MAX_TOKENS = 131072
 
 # Private request-boundary trial switch. Production keeps the existing path.
-_FUSED_DECODE_KV_GATHER = False
+_FUSED_DECODE_KV_GATHER = os.environ.get("OMLX_EXPERIMENTAL_QWEN_COMBINED_MARGINAL") == "1"
 _FUSED_DECODE_KV_GATHER_DISABLED = False
 _FUSED_DECODE_KV_GATHER_PROVEN = False
 _FUSED_DECODE_KV_GATHER_CALLS = 0
