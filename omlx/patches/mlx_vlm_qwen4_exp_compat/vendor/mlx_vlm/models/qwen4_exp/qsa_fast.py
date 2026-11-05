@@ -74,6 +74,9 @@ def _native_causal_query_chunk(key_tokens: int) -> int:
 # -0 == +0, ties by index) and writes the mask or token list in one launch.
 # Tests set _DECODE_SELECT_DISABLED to compare against the MLX ops.
 _DECODE_SELECT_DISABLED = False
+# Private trial switch: change only at an idle request boundary.
+_DECODE_SELECT_REDUCED_BARRIERS_ENABLED = False
+_DECODE_SELECT_REDUCED_BARRIERS_STATS = {"mask": 0, "tokens": 0, "failures": 0}
 _DECODE_SELECT_THREADS = 1024
 # Keys held per thread; larger block banks keep the MLX ops.
 _DECODE_SELECT_MAX_PER_THREAD = 32
@@ -105,6 +108,159 @@ inline uint qsa_order_key(float score) {
     return metal::isnan(score) ? 0xFFFFFFFFu : as_type<uint>(score);
 }
 """
+
+_DECODE_SELECT_SOURCE_REDUCED = r"""
+    constexpr uint TG = 1024;
+    const uint n = uint(head_scores_shape[head_scores_ndim - 1]);
+    const float div = divisor[0];
+    const uint tid = thread_position_in_threadgroup.x;
+    const uint lane = thread_index_in_simdgroup;
+    const uint sg = simdgroup_index_in_threadgroup;
+    threadgroup atomic_uint hist[256];
+    threadgroup uint decided[2];
+    threadgroup uint sg_counts[PER][TG / 32];
+
+    // Thread tid holds blocks tid, tid + TG, ... (slots past n are never counted).
+    uint keys[PER];
+    for (uint j = 0; j < PER; ++j) {
+        const uint e = j * TG + tid;
+        keys[j] = e < n
+            ? qsa_order_key(qsa_decode_block_score(head_scores, n, e, H, div))
+            : 0u;
+    }
+
+    // Radix-select the K-th largest key, eight bits per pass from the top:
+    // `prefix` holds the decided high bits, `remaining` how many of the keys
+    // sharing them are still to be selected.
+    uint prefix = 0;
+    uint remaining = K;
+    for (uint pass = 0; pass < 4; ++pass) {
+        const uint shift = 24 - 8 * pass;
+        if (tid < 256) {
+            atomic_store_explicit(&hist[tid], 0u, memory_order_relaxed);
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        for (uint j = 0; j < PER; ++j) {
+            const uint e = j * TG + tid;
+            if (e < n && (pass == 0 || (keys[j] >> (shift + 8)) == prefix)) {
+                atomic_fetch_add_explicit(
+                    &hist[(keys[j] >> shift) & 255u], 1u, memory_order_relaxed);
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        if (sg == 0) {
+            // Lane l owns digits 8l..8l+7; find the digit where the count of
+            // larger keys first reaches `remaining`.
+            uint counts[8];
+            uint owned = 0;
+            for (uint j = 0; j < 8; ++j) {
+                counts[j] = atomic_load_explicit(&hist[8 * lane + j], memory_order_relaxed);
+                owned += counts[j];
+            }
+            const uint above = simd_sum(owned) - simd_prefix_inclusive_sum(owned);
+            if (above < remaining && remaining <= above + owned) {
+                uint acc = above;
+                for (int j = 7; j >= 0; --j) {
+                    if (acc + counts[j] >= remaining) {
+                        decided[0] = (prefix << 8) | (8 * lane + uint(j));
+                        decided[1] = remaining - acc;
+                        break;
+                    }
+                    acc += counts[j];
+                }
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        prefix = decided[0];
+        remaining = decided[1];
+    }
+
+    // Keys equal to the threshold tie. The stable sort puts the highest-index
+    // ties last, so the lowest `skip` of them stay unselected.
+    const uint threshold = prefix;
+    const uint skip =
+        atomic_load_explicit(&hist[threshold & 255u], memory_order_relaxed) - remaining;
+
+    // Bit j of `hits`: block j * TG + tid is selected. Ties rank by block
+    // index: chunk j holds blocks [j * TG, (j + 1) * TG), and the simdgroups'
+    // tie counts of every chunk meet in threadgroup memory at once.
+    uint hits = 0;
+    if (skip == 0) {
+        for (uint j = 0; j < PER; ++j) {
+            hits |= uint(j * TG + tid < n && keys[j] >= threshold) << j;
+        }
+    } else {
+        uint ties = 0;
+        for (uint j = 0; j < PER; ++j) {
+            const uint tie = uint(j * TG + tid < n && keys[j] == threshold);
+            ties |= tie << j;
+            const uint simd_ties = simd_sum(tie);
+            if (lane == 0) {
+                sg_counts[j][sg] = simd_ties;
+            }
+        }
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+        uint carry = 0;
+        for (uint j = 0; j < PER; ++j) {
+            const uint v = sg_counts[j][lane];
+            const uint before = simd_shuffle(simd_prefix_exclusive_sum(v), sg);
+            const uint tie = (ties >> j) & 1u;
+            const uint rank = carry + before + simd_prefix_exclusive_sum(tie);
+            hits |= uint(j * TG + tid < n && (keys[j] > threshold || (tie && rank >= skip))) << j;
+            carry += simd_sum(v);
+        }
+    }
+"""
+
+_DECODE_SELECT_MASK_EPILOGUE_REDUCED = r"""
+    for (uint j = 0; j < PER; ++j) {
+        const uint e = j * TG + tid;
+        if (e < n) {
+            const bool hit = (hits >> j) & 1u;
+            for (uint r = 0; r < R; ++r) {
+                mask[e * R + r] = hit;
+            }
+        }
+    }
+    // The incomplete tail block is always visible.
+    if (tid < TAIL) {
+        mask[n * R + tid] = true;
+    }
+"""
+
+_DECODE_SELECT_TOKENS_EPILOGUE_REDUCED = r"""
+    // Winning blocks in increasing index order, each widened to its R tokens,
+    // then the tail tokens: the simdgroups' hit counts of every chunk place
+    // the winners (after the tie ranking's reads of the counts).
+    if (skip != 0) {
+        threadgroup_barrier(mem_flags::mem_threadgroup);
+    }
+    for (uint j = 0; j < PER; ++j) {
+        const uint simd_hits = simd_sum((hits >> j) & 1u);
+        if (lane == 0) {
+            sg_counts[j][sg] = simd_hits;
+        }
+    }
+    threadgroup_barrier(mem_flags::mem_threadgroup);
+    uint carry = 0;
+    for (uint j = 0; j < PER; ++j) {
+        const uint v = sg_counts[j][lane];
+        const uint before = simd_shuffle(simd_prefix_exclusive_sum(v), sg);
+        const uint hit = (hits >> j) & 1u;
+        const uint rank = carry + before + simd_prefix_exclusive_sum(hit);
+        if (hit) {
+            const uint e = j * TG + tid;
+            for (uint r = 0; r < R; ++r) {
+                tokens[rank * R + r] = int(e * R + r);
+            }
+        }
+        carry += simd_sum(v);
+    }
+    if (tid < TAIL) {
+        tokens[K * R + tid] = int(n * R + tid);
+    }
+"""
+
 
 _DECODE_SELECT_SOURCE = r"""
     constexpr uint TG = 1024;
@@ -279,7 +435,6 @@ _DECODE_SELECT_TOKENS_EPILOGUE = r"""
     }
 """
 
-
 def _decode_block_selection(
     head_scores: mx.array,
     head_dim: int,
@@ -311,22 +466,31 @@ def _decode_block_selection(
         return None
     heads = int(head_scores.shape[1] * head_scores.shape[2])
     output = "tokens" if tokens else "mask"
+    reduced = _DECODE_SELECT_REDUCED_BARRIERS_ENABLED
+    kernel_key = f"{output}_reduced" if reduced else output
     signature = (output, heads, block_topk, compress_ratio, tail, per_thread)
+    if reduced:
+        signature = ("reduced", *signature)
     if signature in _DECODE_SELECT_FAILED:
         return None
     try:
-        kernel = _DECODE_SELECT_KERNELS.get(output)
+        kernel = _DECODE_SELECT_KERNELS.get(kernel_key)
         if kernel is None:
             kernel = mx.fast.metal_kernel(
-                name=f"omlx_qwen4_qsa_decode_select_{output}",
+                name=f"omlx_qwen4_qsa_decode_select_{kernel_key}",
                 input_names=["head_scores", "divisor"],
                 output_names=[output],
                 header=_DECODE_SELECT_HEADER,
-                source=_DECODE_SELECT_SOURCE
-                + (_DECODE_SELECT_TOKENS_EPILOGUE if tokens else _DECODE_SELECT_MASK_EPILOGUE),
+                source=(
+                    _DECODE_SELECT_SOURCE_REDUCED
+                    + (_DECODE_SELECT_TOKENS_EPILOGUE_REDUCED if tokens else _DECODE_SELECT_MASK_EPILOGUE_REDUCED)
+                    if reduced else
+                    _DECODE_SELECT_SOURCE
+                    + (_DECODE_SELECT_TOKENS_EPILOGUE if tokens else _DECODE_SELECT_MASK_EPILOGUE)
+                ),
                 ensure_row_contiguous=True,
             )
-            _DECODE_SELECT_KERNELS[output] = kernel
+            _DECODE_SELECT_KERNELS[kernel_key] = kernel
         divisor = _DECODE_SELECT_DIVISORS.get(head_dim)
         if divisor is None:
             # The FP32 value MLX makes of the Python float in `scores / sqrt(d)`.
@@ -353,8 +517,12 @@ def _decode_block_selection(
             # Surface a pipeline failure while the MLX ops can still take over.
             mx.eval(result)
             _DECODE_SELECT_VALIDATED.add(signature)
+        if reduced:
+            _DECODE_SELECT_REDUCED_BARRIERS_STATS[output] += 1
         return result
     except Exception as error:
+        if reduced:
+            _DECODE_SELECT_REDUCED_BARRIERS_STATS["failures"] += 1
         _DECODE_SELECT_FAILED[signature] = str(error)
         return None
 
@@ -680,6 +848,88 @@ def masked_decode_sdpa(
 
 _TOKEN_MAJOR_MIN_QUERIES = 32
 _TOKEN_MAJOR_MAX_TOKENS = 131072
+
+# Private request-boundary trial switch. Production keeps the existing path.
+_FUSED_DECODE_KV_GATHER = False
+_FUSED_DECODE_KV_GATHER_DISABLED = False
+_FUSED_DECODE_KV_GATHER_PROVEN = False
+_FUSED_DECODE_KV_GATHER_CALLS = 0
+
+
+@functools.cache
+def _decode_kv_pair_kernel():
+    return mx.fast.metal_kernel(
+        name="omlx_qwen4_decode_gather_kv_pair",
+        input_names=["keys", "values", "indices"],
+        output_names=["selected_keys", "selected_values"],
+        # Cache views retain reserved-capacity strides. Making them contiguous
+        # here would copy the whole cache merely to select ~2K token rows.
+        ensure_row_contiguous=False,
+        source=r"""
+            // One threadgroup per selected token/head, with a contiguous
+            // dimension walk. Avoid integer division in every copied element.
+            const size_t d = thread_position_in_grid.x;
+            const size_t row = thread_position_in_grid.y;
+            const size_t head = thread_position_in_grid.z;
+            const size_t elem = (head * indices_shape[1] + row) * 256 + d;
+            int token = indices[row * indices_strides[1]];
+            // Match take's negative-index semantics for valid [-N, N) ids.
+            if (token < 0) token += keys_shape[2];
+            const size_t key_offset = head * keys_strides[1]
+                + size_t(token) * keys_strides[2] + d * keys_strides[3];
+            const size_t value_offset = head * values_strides[1]
+                + size_t(token) * values_strides[2] + d * values_strides[3];
+            selected_keys[elem] = keys[key_offset];
+            selected_values[elem] = values[value_offset];
+        """,
+    )
+
+
+def _gather_decode_kv_pair(keys, values, indices):
+    """Copy the decode arm's two selected caches in one opt-in launch.
+
+    Only the measured batch-one BF16 geometry engages. Index ids are the
+    chronological, in-bounds selection produced by the caller; no selection,
+    attention, cache update or reduction changes. Empty/foreign shapes and
+    unavailable kernels preserve the existing independent gathers.
+    """
+    global _FUSED_DECODE_KV_GATHER_DISABLED, _FUSED_DECODE_KV_GATHER_PROVEN
+    global _FUSED_DECODE_KV_GATHER_CALLS
+    if (
+        _FUSED_DECODE_KV_GATHER
+        and not _FUSED_DECODE_KV_GATHER_DISABLED
+        and keys.ndim == 4
+        and keys.shape[0:2] == (1, 2)
+        and keys.shape[2] > 0
+        and keys.shape[3] == 256
+        and values.shape == keys.shape
+        and keys.dtype == values.dtype == mx.bfloat16
+        and indices.ndim == 2
+        and indices.shape[0] == 1
+        and 0 < indices.shape[1] <= 4096
+        and indices.dtype == mx.int32
+        and mx.default_device() == mx.gpu
+        and mx.metal.is_available()
+    ):
+        try:
+            shape = (1, 2, indices.shape[1], 256)
+            result = _decode_kv_pair_kernel()(
+                inputs=[keys, values, indices],
+                grid=(256, indices.shape[1], 2),
+                threadgroup=(256, 1, 1),
+                output_shapes=[shape, shape],
+                output_dtypes=[keys.dtype, values.dtype],
+            )
+            if not _FUSED_DECODE_KV_GATHER_PROVEN:
+                # Surface build/launch failure before exposing the lazy result.
+                # This pure copy has no state to roll back on fallback.
+                mx.eval(*result)
+                _FUSED_DECODE_KV_GATHER_PROVEN = True
+            _FUSED_DECODE_KV_GATHER_CALLS += 1
+            return tuple(result)
+        except Exception:
+            _FUSED_DECODE_KV_GATHER_DISABLED = True
+    return _gather_kv_rows(keys, indices), _gather_kv_rows(values, indices)
 
 
 def _gather_kv_rows(kv: mx.array, indices: mx.array) -> mx.array:
@@ -1169,8 +1419,7 @@ def contiguous_causal_gathered_qsa_decode(
             tail = mx.arange(complete_key_len, key_tokens, dtype=mx.int32)[None]
             selected_tokens = mx.concatenate((selected_tokens, tail), axis=-1)
 
-    selected_keys = _gather_kv_rows(keys, selected_tokens)
-    selected_values = _gather_kv_rows(values, selected_tokens)
+    selected_keys, selected_values = _gather_decode_kv_pair(keys, values, selected_tokens)
     output = _decode_qsa_sdpa(
         queries,
         selected_keys,
