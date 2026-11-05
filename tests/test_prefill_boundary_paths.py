@@ -11,6 +11,7 @@ from mlx_lm.models.cache import KVCache
 from omlx.prefill_progress import get_prefill_tracker
 from omlx.request import Request, SamplingParams
 from omlx.scheduler import Scheduler, SchedulerConfig, _PrefillState
+from omlx.scheduler import _PrefillAbortedError
 
 
 @pytest.fixture
@@ -324,3 +325,39 @@ def test_prefill_end_emits_tail_snapshot_off_the_grid(
     assert context.snapshots == expected_snapshots
     assert tails == expected_tails
     assert [e[1] for e in context.events if e[0] == "forward"] == expected_chunks
+
+
+@pytest.mark.parametrize('idle_limit', [0, 512])
+def test_uidless_cancel_only_interrupts_marked_idle_prefill(boundary_scheduler, idle_limit):
+    context = boundary_scheduler
+    scheduler = context.scheduler
+    request = Request(request_id='uidless-idle', prompt=list(range(5)),
+                      sampling_params=SamplingParams(max_tokens=1), idle_preparation_limit=idle_limit)
+    request.prompt_token_ids = list(range(5))
+    original = scheduler.model.side_effect
+
+    def cancelled_forward(*args, **kwargs):
+        result = original(*args, **kwargs)
+        scheduler._pending_abort_ids.add(request.request_id)
+        return result
+
+    scheduler.model.side_effect = cancelled_forward
+    if idle_limit:
+        with pytest.raises(_PrefillAbortedError):
+            scheduler._do_external_prefill(request, request.prompt_token_ids, [KVCache()])
+        assert context.snapshots == []
+    else:
+        scheduler._do_external_prefill(request, request.prompt_token_ids, [KVCache()])
+        assert context.snapshots == [4]
+
+
+def test_idle_prefill_refuses_guard_forced_multiple_chunks(boundary_scheduler):
+    context = boundary_scheduler
+    context.limit.tokens = 2
+    request = Request(request_id='idle-single-chunk', prompt=list(range(5)),
+                      sampling_params=SamplingParams(max_tokens=1), idle_preparation_limit=512)
+    request.prompt_token_ids = list(range(5))
+    with pytest.raises(RuntimeError, match='multiple prefill chunks'):
+        context.scheduler._do_external_prefill(request, request.prompt_token_ids, [KVCache()])
+    assert context.forwarded == []
+    assert context.snapshots == []

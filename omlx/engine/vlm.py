@@ -2904,6 +2904,9 @@ class VLMBatchedEngine(BaseEngine):
 
     async def stop(self) -> None:
         """Stop the engine and cleanup resources."""
+        from ..idle_preparation import shutdown
+
+        await shutdown(self)
         cancelled = False
         engine = self._engine
 

@@ -1,0 +1,279 @@
+# Qwen idle-prefix experiments, 5–6 November 2026
+
+Two bounded variants were tested. Full canonical preparation was rejected
+for strict-equivalence failure and archived at `db054a2b`. The second variant
+prepares only an existing aligned 4096-token boundary. Its exact state audit
+and real automatic success/cancellation qualification pass. Clean automatic
+timing and independent source/live review also pass. Retain this as a
+default-off plain-chat experiment. No installed-runtime change or merge is
+authorised by these experiments.
+
+## Variant 1: rejected full canonical preparation
+
+Decision for variant 1: archive, do not promote. Exact normal next-turn token prefixes and
+cache restoration work, but real follow-up prefill state, sampling logprobs
+and sampled reasoning trajectories differ from the unchanged baseline.
+This fails the required strict equivalence gate. Different output alone is
+not evidence of reduced answer quality. Automatic integration of that
+full-canonical variant was not attempted.
+
+## Scope and implementation
+
+Base: installed source snapshot `0713dc8ea7d8e4a5b269a10cdbea4706a0e68240`.
+Branch: `experiment/qwen-idle-cache-20261105`. Initial candidate, default off via
+`QWEN_TRIAL_IDLE_PREFIX=1`. Main owned all full-model/server runs and guards.
+Weights, precision, actual request prompts/history, thinking controls,
+sampling controls, concurrency one and fixed depth-one MTP were unchanged.
+
+`omlx/idle_prefix.py` renders completed canonical assistant history plus an
+empty placeholder user, then removes only the known complete Qwen empty-user
+suffix. Rendering completed history alone is wrong: this Qwen template keeps
+the final assistant's thinking branch until another normal user follows.
+No real future-user content is supplied to preparation.
+
+`scripts/prepare_idle_prefix.py` uses a CPU-only tokenizer and the existing
+raw completion route with canonical text plus one sacrificial `<|im_start|>`
+token, `max_tokens=1`, temperature zero. Local tokenisation must equal the
+canonical prefix plus that single token. Existing prefill-tail snapshots
+then store the canonical history, including non-sliceable recurrent state
+and the MTP prompt-history sidecar. Raw completions accept strings rather
+than integer token lists. Incoming real requests remain normally templated.
+
+## Evidence and restoration
+
+CPU tokenizer checks: 18 ordinary future-user prefixes match exactly across
+medium, low and disabled thinking. Three intentionally tool-response-wrapped
+user bodies select a different Qwen template branch and safely miss. Naive
+history-only rendering fails every ordinary case. See
+`idle-prefix-token-check.json`.
+
+Real short rep1 has the same 2,849-token follow-up prompt in both audits:
+`4bd93847bc5d8c2ec593f8e220e8872be71afdb2d702ce6682524bc7e9f11bd3`.
+Baseline restores 2,431 tokens; preparation restores all 2,824 canonical
+history tokens, leaving only 25 new user/generation tokens.
+
+At the prepared 2,824-token boundary, all captured/restored trunk tensor
+bits, shapes, metadata and offsets match exactly. The MTP cache and pending
+hidden match exactly; folded offset is 2,823 and expected offset is 2,824.
+Earlier 6/2,431-token restores in both arms also match logically. Their sole
+raw representation difference is text QSA positions `[1,C]` versus broadcast
+`[3,1,C]`. The comparator verifies every relevant hash equals the exact
+integer sequence `0..C-1`, once or three times, before normalising this
+representation. It does not accept arbitrary shape changes or unknown
+position data.
+
+## End of the real follow-up prefill
+
+Both arms reach offset 2,848 with the same last prompt token. All 48 trunk
+layers contain differing tensor values: 36 ArraysCache and 12 QSAKVCache
+layers, 108 differing tensor hashes. Shapes, metadata and positions agree.
+PLE token-history arrays are unchanged; recurrent/conv and projected
+attention state differ. MTP head cache has three differing tensor hashes
+and differing pending hidden, despite equal valid folded/expected offsets
+2,847/2,848.
+
+First sampling input is BF16 normalised sampling logprobs, preserved as
+float32 `.npy` for CPU comparison. Of 248,320 values, 7,690 match exactly.
+Maximum absolute delta is 0.75, mean absolute delta 0.2480951997 and RMSE
+0.2695223203. No nonfinite mismatch exists. Top token remains ID760 with
+logprob zero in both arms, and the first sampled token remains ID760.
+The actual request seed and RNG state before/after this first sample match
+exactly. Thus the measured first-distribution difference predates any
+divergent first-token RNG consumption.
+
+The 2,436-token cold request and separate 28,288-token trace have exact
+cross-run final trunk/MTP state and sampling logprobs. Main verified cold
+outputs and observed baseline outputs match their uninstrumented controls.
+Prepared audit reproduces its uninstrumented altered follow-up trajectory:
+385 completion tokens versus baseline299. This is a strict-equivalence
+failure, without making a quality judgement about either answer.
+
+Detailed comparison: `idle-audit-comparison.json`, generated by the
+stdlib-only `scripts/compare_idle_audits.py`. Private source evidence stays
+outside this archive in `baseline-state-expert-b/` and `prepared-state-q4/`.
+Large arrays and private API credentials are not committed.
+
+## Indicative timing, including preparation cost
+
+These four timing comparisons are diagnostic references, not a promoted
+matched-harness performance claim: main corrected a client-import path
+between the initial baseline and candidate. Correctness failure made a
+further formal timing round unnecessary. State-audit timings are excluded.
+
+| Case | Baseline TTFT s | Prepared TTFT s | Idle preparation s | Preparation + TTFT s |
+| --- | ---: | ---: | ---: | ---: |
+| Short1 | 0.924331 | 0.406591 | 5.653003 | 6.059594 |
+| Short2 | 0.964770 | 0.235261 | 0.906366 | 1.141627 |
+| Long1 | 1.265222 | 0.440301 | 1.185268 | 1.625569 |
+| Long2 | 1.786054 | 0.438544 | 1.773308 | 2.211852 |
+
+The first preparation includes 4.765343s importing/loading the CPU tokenizer;
+its actual warm request is 0.864155s. Subsequent tokenizer reuse is negligible.
+All four prepared requests reuse the entire canonical prefix and leave
+25 tokens. Preparation can hide work in a sufficiently long idle interval;
+counting it on the serial critical path costs more than baseline TTFT in
+all four cases. All four sampled reasoning trajectories differ.
+
+## Cause bounded by current evidence
+
+Storage/restoration is exact at the new canonical boundary. Final positions
+and PLE token histories remain correct. The remaining leading hypothesis is
+changed numerical grouping from splitting prefill at 2,824 instead of
+forwarding the answer and next-user region together. Exact restoration does
+not prove equivalence to the original unsplit computation. No claim that
+rounding is conclusively isolated is made.
+
+One small optional diagnostic would establish this more directly: run only
+short rep1 with the frozen fixture, preparation disabled, and the normal
+request unchanged. For this exact prompt hash, make the existing
+`_prefill_system_stop` hook additionally stop at 2,824 while preserving the
+normal generation-prompt stop at 2,844. Use existing final-prefill/first-sample
+audit hooks. No warm request, custom forward, sampler change or new scheduler
+is needed. Split-only state/logprobs equal to prepared state would isolate
+the added split as the cause; failure would leave another handoff effect
+unresolved. Either result leaves current strict baseline equivalence failed.
+This diagnostic is proposed, not implemented or run.
+
+## Validation and limits
+
+Eight CPU guard tests pass, including strict byte-verified position
+normalisation and reading MLX's Fortran-flagged single-row NPY vectors.
+The tiny real-MLX observer smoke covers float32/float16/bfloat16/int32/uint32,
+boolean/scalar/strided/empty arrays, nested leaves and MLX0.32.4 RandomState.
+Eight sampled tokens and before/after RNG match the unobserved sampler;
+sampler metadata and saved sampling logprobs are exact. No weights are loaded
+in that smoke; active MLX memory was 2,118 bytes. Summary:
+`idle-observer-smoke/summary.json`.
+
+The observer is diagnostic only: hashing synchronises arrays and copies
+bytes to CPU. It is excluded from timing runs. Model/server diagnostics were
+run by main under its lease and guards. The full-canonical candidate has no
+automatic integration; its correctness failure stopped qualification. The
+aligned candidate's subsequent integration and limits are below.
+
+## Variant 2: existing aligned boundary
+
+The second candidate truncates known canonical history to its last existing
+4096-token boundary, only when that advances beyond the old request prompt.
+Both fixed short cases skip. Long reps1/2 select 28,672 from canonical
+prefixes 28,714/28,855. Decode/encode, raw sentinel tokenisation and actual
+next-turn prefix IDs match exactly in all eligible CPU fixture checks.
+
+The original baseline already executes these chunks:
+
+| Case | Baseline chunks from cached offset 28,275 | Prepared real suffix |
+| --- | --- | --- |
+| Long1 | 397,62,4 | 62,4 plus final kickoff token;67 tokens total |
+| Long2 | 397,203,4 | 203,4 plus final kickoff token;208 tokens total |
+
+Moving the 397 token chunk into idle time preserves
+the existing numerical grouping. At 28,672 the normal full-boundary producer and
+restored trunk/MTP state are bit exact. At the real long1 follow-up's final
+prefill, every trunk/head tensor, position, metadata field and first sampling
+logprob matches baseline. All 248,320 sampling values match; max delta and
+RMSE are zero. Seed, before/after RNG and first token match. The answer and
+reasoning hashes also match. See `idle-boundary-audit-comparison.json`.
+
+Manual aligned timing uses matched actual requests and frozen answers:
+1.305→0.549s and 1.675→0.932s follow-up TTFT, savings 756/743ms. All four cold
+and follow-up prompt/count/answer/reasoning comparisons pass. The warm HTTP
+requests cost 0.943/1.013s, with resident render 0.127/0.107s and a separate
+first client tokenizer import/load 4.765s. This work is beneficial only when
+hidden in a sufficiently long idle interval; it is not a reduction in total
+serial compute. The manual baseline records 5.75MiB aggregate swap writes
+and the candidate zero, below the unchanged guard. Clean automatic timing is
+below; state/observation runs are not timed evidence.
+
+## Automatic plain-chat integration and real qualification
+
+`OMLX_EXPERIMENTAL_QWEN_IDLE_BOUNDARY=1` enables only the tested Qwen4 route,
+4096-token cache blocks and one sequence. Default is off. It observes actual
+emitted `delta.content` for streaming replies and final JSON message content
+for nonstream replies. Reasoning is never added to prepared assistant content;
+the caller's message history is copied and remains unchanged.
+
+Normal foreground leases cover preflight through response release. Unique
+tickets are captured before waits; an older response cannot schedule against
+a newer foreground arrival. A useful candidate starts only after its own
+lease releases with no other foreground route outstanding. Foreground
+acquisition cancels pending/active work before preflight. Shutdown cancels it
+before dropping tokenizer/core references.
+
+Known and actual uncached spans are separately capped at 512 tokens. A guard
+that would split the chunk causes a skip. Missing cache, pressure/contention,
+unsupported templates/routes, partial/failed replies, already-cacheable
+reasoning and cache-store opt-out all skip. Tool schemas and tool-call
+responses are deliberately ineligible. Hermes normally declares tools, so
+this is a plain-chat result and establishes no Hermes speed gain.
+
+Marked jobs use `Request.idle_preparation_limit=512`. Abort persistently marks
+their store opt-out, including cancellation during final-token/completion work.
+Store submission and the normal store worker recheck it. UID-less prefill
+abort handling is changed only for marked jobs. Incomplete transient state is
+discarded; exact completed blocks already committed normally remain valid.
+Foreground cancellation behaviour is unchanged for ordinary requests.
+
+Main's `auto-live-qualification` passes eight actual API requests: successful
+automatic prefix reuse with an unchanged seeded follow-up; actual nonstream
+content scheduling and queued cancellation; cancellation after owner-thread
+prefill entered; and final drain. Successful follow-up reuses 28,672/28,739
+tokens, returns 499 completion tokens and matches baseline answer/reasoning
+hashes. The queued-only gate is private observation instrumentation, never a
+production scheduling policy. The active cancellation uses no gate or seeded
+cache. The run ends with no active background task, retained aborted request
+or transient aborted snapshot. Six real Read/Bash/Edit tool cases and JSON
+schema validation also pass on this source, with automatic work skipped for
+those routes. Main reports no lifetime swap in the live qualification.
+
+Cancellation has a material latency limit: a running GPU chunk is not
+preemptible. In the active case, cancellation arrived 9.97ms after owner-thread
+prefill entry; that chunk ended 0.984s later. Foreground TTFT was 1.111s, versus
+0.267s for queued cancellation and 0.097s for the final warm drain. It yields
+after the current bounded chunk and performs no further idle generation.
+The observed active-versus-queued penalty is 0.844s.
+The 512-token cap is a work bound, not a sub-second response-time guarantee.
+First uncached turns are unchanged. Suitable boundaries and an adequate idle
+window are required; short histories usually skip.
+
+Current focused checks: 70 scheduler/boundary tests, 14 controller CPU tests and
+11 helper CPU tests pass (95 total), plus the earlier tiny observer smoke.
+Independent review's cache opt-out, late-store cancellation and overlapping
+preflight issues were corrected with focused coverage. Fresh source and live
+evidence review is clear. No push, merge or installation has been performed
+for this candidate.
+
+## Clean automatic timing result
+
+The normal route schedules preparation itself from actual visible content;
+the timing run has no manual adapter, state hashing or live observation hook.
+It uses the same frozen conversations, full thinking, model settings,
+sampling controls, profile, launcher and client/profiling code as baseline.
+All four cold/follow-up answer and reasoning hashes match exactly. The two
+follow-up token counts remain 499/482 and both restore 28,672 rather than
+28,275 tokens.
+
+| Long follow-up | Baseline TTFT s | Automatic TTFT s | Saving s |
+| --- | ---: | ---: | ---: |
+| Rep1 | 1.299 | 0.538 | 0.761 |
+| Rep2 | 1.654 | 0.957 | 0.697 |
+| Median, two samples/arm | 1.4765 | 0.7475 | 0.729 |
+
+This is a 49.37% median reduction for these prepared follow-ups. Automatic
+preparation costs 1.2971/1.2719s in idle time, including loaded-tokenizer
+rendering and warm processing. It cannot improve a user request that arrives
+before that work completes, and can add the active-chunk delay above. Counting
+preparation on the serial critical path is not a speed gain. First uncached
+requests are not optimised; cold TTFT differences are not attributed to this
+feature. This two-sample result is bounded evidence, not a broad workload
+speed claim.
+
+Both complete server lifetimes record zero swap writes. Runner harness hashes
+differ only for recording the observation environment and adding an opt-in
+observer hook; that hook is disabled in both timing arms. Client/profiling
+files and dependency hashes match. Main audited and recorded this difference
+in `auto-comparison.json`. All seven runtime file hashes match the source
+that passed the real runs. The controls stay default off, with no tool-schema
+support expansion, installation or merge.
+
+Compact public evidence is `idle-boundary-evidence.json`. Raw prompts, large
+arrays and API keys stay outside the archive in main's private run directories.
