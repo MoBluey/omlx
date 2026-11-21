@@ -53,13 +53,36 @@ def install(model, model_path):
         LOG.info("PRIVATE_ORNITH_RESIDUAL %s", json.dumps({
             "event": event, "mode": mode, "factor_sha256": FACTOR_SHA,
             "native_projection_sha256": physical,
+            "hook_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+            "engine": "VLMBatchedEngine",
             "ordinary_calls": wrapper.ordinary_calls,
             "verify_calls": wrapper.verify_calls,
             "verify_two_row_calls": wrapper.verify_two_row_calls,
         }, sort_keys=True))
+    def compare_zero_projection(x, y):
+        # Same real armed two-row input, same original module, stock verifier
+        # dispatch. This is projection fidelity, not a whole-backbone claim.
+        from mlx_vlm.speculative.ops.linear import _target_verify_linear
+
+        reference = _target_verify_linear(base, x)
+        mx.eval(reference, y)
+        actual, expected = np.asarray(y), np.asarray(reference)
+        if (actual.shape != expected.shape or actual.dtype != expected.dtype
+                or not np.isfinite(actual).all()
+                or actual.tobytes() != expected.tobytes()):
+            raise RuntimeError("Native zero projection differs from stock verifier dispatch")
+        LOG.info("PRIVATE_ORNITH_RESIDUAL %s", json.dumps({
+            "event": "zero_projection_equal", "mode": mode, "factor_sha256": FACTOR_SHA,
+            "shape": list(actual.shape), "dtype": str(actual.dtype),
+            "output_sha256": hashlib.sha256(actual.tobytes()).hexdigest(),
+            "reference_sha256": hashlib.sha256(expected.tobytes()).hexdigest(),
+            "scope": "first genuine armed two-row projection, same input and stock dispatcher",
+            "whole_verifier_equivalence": False,
+        }, sort_keys=True))
+
     wrapper = make_projection(base, a, b, active=mode == "half", mx=mx, nn=nn,
         verify_state=lambda: qwen35_verify_qmm._is_armed() or qwen35_verify_qmm.is_row_exact_armed(),
-        report=report)
+        report=report, compare_zero=compare_zero_projection if mode == "zero" else None)
     attention.o_proj = wrapper
     after = dict(tree_flatten(model.parameters()))
     normalised = {key.replace(KEY + ".linear.", KEY + "."): value for key, value in after.items()
@@ -86,7 +109,7 @@ def report_stop(model):
     }, sort_keys=True))
 
 
-def make_projection(base, a, b, *, active, mx, nn, verify_state, report=lambda *args: None):
+def make_projection(base, a, b, *, active, mx, nn, verify_state, report=lambda *args: None, compare_zero=None):
     assert type(active) is bool
     assert isinstance(base, nn.QuantizedLinear)
     assert base.bits == 8 and base.group_size == 64 and base.mode == 'affine'
@@ -115,6 +138,8 @@ def make_projection(base, a, b, *, active, mx, nn, verify_state, report=lambda *
                     report("ordinary", self)
             y = self.linear(x)
             if not active:
+                if compare_zero is not None and verify_state() and self.verify_two_row_calls == 1 and x.shape[-2] == 2:
+                    compare_zero(x, y)
                 return y  # Exact same native result object; no zero-add/rounding.
             delta = ((x.astype(mx.float32) @ self.lora_a) @ self.lora_b) * 0.5
             return y + delta.astype(y.dtype)

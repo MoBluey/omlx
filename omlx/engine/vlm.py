@@ -33,6 +33,7 @@ import inspect
 import itertools
 import json
 import logging
+import os
 import threading
 from collections.abc import AsyncIterator
 from pathlib import Path

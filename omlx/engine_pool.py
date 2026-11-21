@@ -18,6 +18,7 @@ import copy
 import gc
 import json
 import logging
+import os
 import time
 from collections import OrderedDict
 from contextlib import asynccontextmanager, suppress
@@ -4285,11 +4286,17 @@ class EnginePool:
                         prefill_eviction_callback=prefill_eviction_callback,
                     )
 
+            if os.environ.get("OMLX_PRIVATE_ORNITH_RESIDUAL") is not None:
+                if not isinstance(engine, VLMBatchedEngine):
+                    raise RuntimeError("Private Ornith residual requires the VLM engine")
             if isinstance(engine, SplashEngine):
                 self._starting_external[model_id] = engine
             try:
                 await self._start_engine(engine)
             except Exception as start_error:
+                if os.environ.get("OMLX_PRIVATE_ORNITH_RESIDUAL") is not None:
+                    # Never turn a failed experimental install into an unmodified arm.
+                    raise
                 if isinstance(engine, SplashEngine):
                     # start() already stopped Splash; its error carries the
                     # tail of the Splash log. There is no MLX fallback.
