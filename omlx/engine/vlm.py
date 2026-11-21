@@ -2476,6 +2476,13 @@ class VLMBatchedEngine(BaseEngine):
         # Create VLM model adapter wrapping language_model.
         # mlx-vlm models now handle per-sequence mx.array offsets natively
         # and batched decode is fixed, so no separate mlx-lm decode model needed.
+        if os.environ.get("OMLX_PRIVATE_ORNITH_RESIDUAL") is not None:
+            from ..patches.ornith_native_residual import install
+
+            await asyncio.get_running_loop().run_in_executor(
+                get_mlx_executor(), install, self._vlm_model, self._model_name
+            )
+
         self._adapter = VLMModelAdapter(self._vlm_model)
 
         # Create scheduler config
@@ -2919,6 +2926,10 @@ class VLMBatchedEngine(BaseEngine):
         # pass has already run. Mark unloaded first: the scheduler is no longer
         # reachable once _engine is cleared.
         self._loaded = False
+        if os.environ.get("OMLX_PRIVATE_ORNITH_RESIDUAL") is not None:
+            from ..patches.ornith_native_residual import report_stop
+
+            report_stop(self._vlm_model)
         language_model = getattr(self._adapter, "_language_model", None)
         if self._dflash_drafter is not None and language_model is not None:
             detach_drafter(language_model)
